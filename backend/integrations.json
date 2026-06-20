@@ -1,0 +1,19 @@
+{
+  "slack_channels": [
+    "C0AQMS8J0P3",
+    "C08HZLP4EQY",
+    "C09SENZ1XB5",
+    "C0ASNKY5PAA",
+    "C09U2RJ97FY"
+  ],
+  "jira_projects": [
+    "SAAS"
+  ],
+  "gitlab_projects": [],
+  "google_sheets": [
+    "12UuW3yRrg0bNVPPaAV6RM3bnzXF3qALtWkSQZ8LrSLs",
+    "1Blr-0HOyc6wH9a3i0RKpd2Nn8Al-WImkBlEmS0J72s4",
+    "1vh8V-LdY-9C6Xskr_tJ7VNp32B9Y-j0l00TrLdxAejA",
+    "1dTr6TuRJp430R-HmXVR6WiSx53qedtWd"
+  ]
+}

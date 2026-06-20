@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS reminders;
+DROP TABLE IF EXISTS dependencies;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS operational_events;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS workspaces;

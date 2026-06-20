@@ -1,0 +1,18 @@
+{
+  "name": "ai-delivery-operating-system",
+  "version": "1.0.0",
+  "description": "AI-OS is a state-of-the-art Operational Execution System designed to autonomously track tasks, ingest external events, and maintain project memory using Large Language Models (LLMs). It acts as an intelligent layer on top of your existing tools.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "prettier": "^3.8.4"
+  }
+}
