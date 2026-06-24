@@ -65,6 +65,8 @@ func main() {
 	mux.HandleFunc("/api/v1/tasks", tasks.GetTasksHandler)
 	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
 
+	mux.HandleFunc("/api/v1/events", events.GetEventsHandler)
+
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
 
 	// Simple CORS Middleware
