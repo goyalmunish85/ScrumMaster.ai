@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
+import TaskTable from '../components/TaskTable';
 
 type Message = {
   id: string;
@@ -39,7 +40,6 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Reports
@@ -63,16 +63,6 @@ export default function Home() {
   useEffect(() => {
     setHasMounted(true);
   }, []);
-
-  const fetchTasks = async () => {
-    try {
-      const res = await fetch('http://localhost:8080/api/v1/tasks');
-      const data = await res.json();
-      setTasks(data || []);
-    } catch (err) {
-      console.error('Failed to fetch tasks:', err);
-    }
-  };
 
   const fetchSyncLogs = async () => {
     try {
@@ -152,14 +142,12 @@ export default function Home() {
     }
   };
 
-  // Fetch initial messages & tasks
+  // Fetch initial messages
   useEffect(() => {
     fetch('http://localhost:8080/api/v1/chat/messages')
       .then((res) => res.json())
       .then((data) => setMessages(data || []))
       .catch((err) => console.error('Failed to fetch messages:', err));
-
-    fetchTasks();
   }, []);
 
   // Auto-scroll to bottom
@@ -195,8 +183,6 @@ export default function Home() {
       if (res.ok) {
         const aiMsg = await res.json();
         setMessages((prev) => [...prev, aiMsg]);
-        // Refresh tasks after AI processes the message
-        fetchTasks();
       } else {
         setMessages((prev) => [
           ...prev,
@@ -606,152 +592,8 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
-          {['BLOCKED', 'IN_PROGRESS', 'DRAFT', 'DONE'].map((statusGroup) => {
-            const groupTasks = tasks.filter((t) => t.status === statusGroup);
-            if (groupTasks.length === 0) return null;
-
-            let statusColor =
-              'bg-slate-500/10 text-slate-400 border-slate-500/20';
-            let dotColor = 'bg-slate-500';
-            let label = 'Drafts';
-
-            if (statusGroup === 'BLOCKED') {
-              statusColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-              dotColor = 'bg-rose-500 animate-pulse';
-              label = 'Blocked';
-            } else if (statusGroup === 'IN_PROGRESS') {
-              statusColor =
-                'bg-amber-500/10 text-amber-400 border-amber-500/20';
-              dotColor = 'bg-amber-500';
-              label = 'In Progress';
-            } else if (statusGroup === 'DONE') {
-              statusColor =
-                'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-              dotColor = 'bg-emerald-500';
-              label = 'Completed';
-            }
-
-            return (
-              <div key={statusGroup} className="space-y-3">
-                <div className="flex items-center gap-2 px-1">
-                  <span className={`h-2 w-2 rounded-full ${dotColor}`}></span>
-                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    {label}
-                  </h3>
-                  <span className="ml-auto text-xs font-medium text-slate-500">
-                    {groupTasks.length}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  {groupTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 shadow-sm hover:border-slate-700 transition-colors group"
-                    >
-                      <p className="text-sm font-medium text-slate-200 leading-snug">
-                        {task.title}
-                      </p>
-
-                      <div className="flex flex-wrap gap-1.5 mt-2.5">
-                        {task.source_name && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            {task.source_name.split(':')[0]}
-                          </span>
-                        )}
-                        {task.client && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20">
-                            {task.client}
-                          </span>
-                        )}
-                        {task.team && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {task.team}
-                          </span>
-                        )}
-                        {task.sprint && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">
-                            {task.sprint}
-                          </span>
-                        )}
-                        {task.task_type && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            {task.task_type}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800/60">
-                        {task.assignee ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-5 w-5 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-                              <span className="text-[9px] font-bold text-indigo-300">
-                                {task.assignee.substring(0, 2).toUpperCase()}
-                              </span>
-                            </div>
-                            <span
-                              className="text-xs text-slate-400 truncate max-w-[100px]"
-                              title={task.assignee}
-                            >
-                              {task.assignee}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-500 italic">
-                            Unassigned
-                          </span>
-                        )}
-
-                        {task.due_date && (
-                          <div className="flex items-center gap-1 text-xs text-slate-400 ml-auto shrink-0">
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                              />
-                            </svg>
-                            {task.due_date.substring(0, 10)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {tasks.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-40 text-center px-4">
-              <svg
-                className="w-8 h-8 text-slate-600 mb-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
-              <p className="text-sm font-medium text-slate-400">
-                No active tasks
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Start chatting to extract tasks
-              </p>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar h-full relative z-10 w-full overflow-hidden">
+           <TaskTable />
         </div>
       </aside>
 
