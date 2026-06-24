@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/aios/backend/internal/db"
@@ -208,4 +209,84 @@ func DeleteTargetHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+// UpdateSheetsConfigHandler dynamically updates os.Getenv or DB config for sheets
+func UpdateSheetsConfigHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		SheetIDs []string `json:"sheet_ids"`
+		Action   string   `json:"action"` // "add" or "replace"
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid body", http.StatusBadRequest)
+		return
+	}
+
+	if db.DB == nil {
+		http.Error(w, "Database unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	tx := db.DB.Begin()
+	if tx.Error != nil {
+		http.Error(w, "Failed to start transaction", http.StatusInternalServerError)
+		return
+	}
+
+	if req.Action == "replace" {
+		// Delete existing sheets targets
+		if err := tx.Where("platform = ?", "sheets").Delete(&models.IntegrationTarget{}).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to clear existing targets", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Add new sheet targets
+	for _, sheetID := range req.SheetIDs {
+		target := models.IntegrationTarget{
+			ID:        uuid.New().String(),
+			Platform:  "sheets",
+			TargetID:  sheetID,
+			CreatedAt: time.Now(),
+		}
+		if err := tx.Create(&target).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to save target", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		http.Error(w, "Failed to commit transaction", http.StatusInternalServerError)
+		return
+	}
+
+	// Read active sheet targets for env update
+	var targets []models.IntegrationTarget
+	if err := db.DB.Where("platform = ?", "sheets").Find(&targets).Error; err != nil {
+		http.Error(w, "Failed to fetch targets", http.StatusInternalServerError)
+		return
+	}
+
+	var activeSheetIDs []string
+	for _, target := range targets {
+		activeSheetIDs = append(activeSheetIDs, target.TargetID)
+	}
+
+	// Encode to JSON to store as env string
+	b, _ := json.Marshal(activeSheetIDs)
+	os.Setenv("GOOGLE_SHEETS", string(b))
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+		"message": "Sheets config updated",
+	})
 }
