@@ -155,3 +155,86 @@ func SearchTasksSemantic(query string, limit uint64) ([]models.Task, error) {
 
 	return tasks, nil
 }
+
+// UpsertEventToQdrant generates an embedding for a raw episodic event (like a slack message) and upserts it to Qdrant
+func UpsertEventToQdrant(text string, metadata map[string]string) error {
+	if db.QdrantClient == nil {
+		return fmt.Errorf("Qdrant client not initialized")
+	}
+
+	vector, err := GenerateEmbedding(text)
+	if err != nil {
+		return fmt.Errorf("failed to generate embedding: %v", err)
+	}
+
+	payload := map[string]*qdrant.Value{
+		"text": qdrant.NewValueString(text),
+	}
+	for k, v := range metadata {
+		payload[k] = qdrant.NewValueString(v)
+	}
+
+	uid := uuid.New().String()
+	point := &qdrant.PointStruct{
+		Id:      qdrant.NewIDUUID(uid),
+		Vectors: qdrant.NewVectors(vector...),
+		Payload: payload,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	wait := true
+	_, err = db.QdrantClient.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: db.EventsCollection,
+		Wait:           &wait,
+		Points:         []*qdrant.PointStruct{point},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert event to Qdrant: %v", err)
+	}
+
+	log.Printf("[QDRANT] Upserted event %s into episodic memory", uid)
+	return nil
+}
+
+// SearchEventsSemantic searches Qdrant for similar events using the provided query
+func SearchEventsSemantic(query string, limit uint64) ([]map[string]interface{}, error) {
+	if db.QdrantClient == nil {
+		return nil, fmt.Errorf("Qdrant client not initialized")
+	}
+
+	vector, err := GenerateEmbedding(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding for query: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	searchResults, err := db.QdrantClient.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: db.EventsCollection,
+		Query:          qdrant.NewQuery(vector...),
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to search Qdrant events: %v", err)
+	}
+
+	var events []map[string]interface{}
+	for _, result := range searchResults {
+		if result.Payload == nil {
+			continue
+		}
+
+		eventData := make(map[string]interface{})
+		for k, v := range result.Payload {
+			eventData[k] = v.GetStringValue()
+		}
+		events = append(events, eventData)
+	}
+
+	return events, nil
+}

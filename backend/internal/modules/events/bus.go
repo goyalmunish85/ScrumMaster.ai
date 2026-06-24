@@ -282,6 +282,16 @@ func StartListener() {
 			// Save the audit record
 			if db.DB != nil {
 				db.DB.Create(&eventRecord)
+
+				// [PHASE 6] If this event modified a task, re-upsert the latest task state to Qdrant
+				if eventRecord.TaskID != nil {
+					go func(id string) {
+						var updatedTask models.Task
+						if err := db.DB.First(&updatedTask, "id = ?", id).Error; err == nil {
+							memory.UpsertTaskToQdrant(&updatedTask)
+						}
+					}(*eventRecord.TaskID)
+				}
 			}
 		}
 	}()

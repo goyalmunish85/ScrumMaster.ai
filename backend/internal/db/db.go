@@ -34,6 +34,7 @@ func InitDB() {
 		&models.CronLog{},
 		&models.SlackSyncState{},
 		&models.IntegrationTarget{},
+		&models.ActivityLog{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database schemas: %v", err)

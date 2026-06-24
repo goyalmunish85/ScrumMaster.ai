@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,8 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
+	"github.com/aios/backend/internal/db"
+	"github.com/aios/backend/internal/models"
 	"github.com/aios/backend/internal/modules/events"
+	"github.com/google/uuid"
 )
 
 type JiraSearchResponse struct {
@@ -180,6 +185,57 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 		return ""
 	}
 
+	logJiraComment := func(issueKey string, commentObj map[string]interface{}) {
+		if db.DB == nil {
+			return
+		}
+
+		commentID := ""
+		if v, ok := commentObj["id"].(string); ok {
+			commentID = v
+		} else {
+			return
+		}
+
+		author := ""
+		if authMap, ok := commentObj["author"].(map[string]interface{}); ok {
+			if dn, ok := authMap["displayName"].(string); ok {
+				author = dn
+			}
+		}
+
+		body := ""
+		if b, ok := commentObj["body"].(string); ok {
+			body = b
+		} else {
+			bodyBytes, _ := json.Marshal(commentObj["body"])
+			body = string(bodyBytes)
+		}
+
+		ts := time.Now()
+		if updated, ok := commentObj["updated"].(string); ok {
+			if t, err := time.Parse("2006-01-02T15:04:05.000-0700", updated); err == nil {
+				ts = t
+			} else if t, err := time.Parse(time.RFC3339, updated); err == nil {
+				ts = t
+			}
+		}
+
+		activity := models.ActivityLog{
+			ID:        uuid.New().String(),
+			Platform:  "jira",
+			Author:    author,
+			Content:   body,
+			SourceRef: "jira_" + issueKey + "_" + commentID,
+			Timestamp: ts,
+		}
+
+		var existing models.ActivityLog
+		if err := db.DB.Where("source_ref = ?", activity.SourceRef).First(&existing).Error; err != nil {
+			db.DB.Create(&activity)
+		}
+	}
+
 	for _, issueData := range allIssues {
 		key := issueData["key"].(string)
 		fields := issueData["fields"].(map[string]interface{})
@@ -238,6 +294,17 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 			ParentKey:   parentKey,
 			SourceName:  "Jira: " + projectKey,
 		})
+
+		// [PHASE 7] Extract comments to ActivityLog
+		if commentField, ok := fields["comment"].(map[string]interface{}); ok {
+			if commentsArray, ok := commentField["comments"].([]interface{}); ok {
+				for _, cInt := range commentsArray {
+					if cMap, ok := cInt.(map[string]interface{}); ok {
+						logJiraComment(key, cMap)
+					}
+				}
+			}
+		}
 	}
 
 	payloadBytes, _ := json.Marshal(map[string]interface{}{
@@ -247,4 +314,85 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 	events.Publish(events.OperationalEvent{Type: events.BulkTasks, Payload: payloadBytes})
 
 	return fmt.Sprintf("Extracted %d rich tasks from Jira project %s.", len(tasks), projectKey), nil
+}
+
+// CreateJiraTicket creates a new issue in Jira and returns the JiraKey
+func CreateJiraTicket(task models.Task, projectKey string) (string, error) {
+	if os.Getenv("DRY_RUN") == "true" {
+		log.Printf("[DRY-RUN] Would create Jira ticket in project %s: %s", projectKey, task.Title)
+		return "DRYRUN-123", nil
+	}
+
+	domain := os.Getenv("JIRA_DOMAIN")
+	email := os.Getenv("JIRA_EMAIL")
+	token := os.Getenv("JIRA_API_TOKEN")
+
+	if domain == "" || email == "" || token == "" {
+		return "", fmt.Errorf("JIRA credentials are missing in .env")
+	}
+
+	apiURL := fmt.Sprintf("https://%s/rest/api/3/issue", domain)
+	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, token)))
+
+	// Minimal Jira ADF payload
+	payload := map[string]interface{}{
+		"fields": map[string]interface{}{
+			"project": map[string]interface{}{
+				"key": projectKey,
+			},
+			"summary": task.Title,
+			"description": map[string]interface{}{
+				"type":    "doc",
+				"version": 1,
+				"content": []map[string]interface{}{
+					{
+						"type": "paragraph",
+						"content": []map[string]interface{}{
+							{
+								"type": "text",
+								"text": task.Description,
+							},
+						},
+					},
+				},
+			},
+			"issuetype": map[string]interface{}{
+				"name": "Task",
+			},
+		},
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Authorization", "Basic "+auth)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("failed to create jira ticket, status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	log.Printf("[JIRA] Created ticket: %s", result.Key)
+	return result.Key, nil
 }

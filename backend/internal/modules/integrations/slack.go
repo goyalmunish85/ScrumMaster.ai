@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/aios/backend/internal/models"
 	"github.com/aios/backend/internal/modules/ai"
 	"github.com/aios/backend/internal/modules/events"
+	"github.com/aios/backend/internal/modules/memory"
+	"github.com/google/uuid"
 )
 
 type SlackMessage struct {
@@ -115,6 +118,38 @@ func SyncSlackChannel(channelID string) (string, error) {
 	var transcriptBuilder strings.Builder
 	transcriptBuilder.WriteString(fmt.Sprintf("--- Slack Conversation Transcript for Channel #%s (Context: Client or Team Name is likely '%s') ---\n\n", channelName, channelName))
 
+	// Helper to insert ActivityLog
+	logActivity := func(m SlackMessage) {
+		if db.DB == nil {
+			return
+		}
+
+		sec := int64(0)
+		if parts := strings.Split(m.Ts, "."); len(parts) > 0 {
+			fmt.Sscanf(parts[0], "%d", &sec)
+		}
+
+		ts := time.Now()
+		if sec > 0 {
+			ts = time.Unix(sec, 0)
+		}
+
+		activity := models.ActivityLog{
+			ID:        uuid.New().String(),
+			Platform:  "slack",
+			Author:    m.User,
+			Content:   m.Text,
+			SourceRef: "slack_" + channelID + "_" + m.Ts,
+			Timestamp: ts,
+		}
+
+		// Insert if not exists
+		var existing models.ActivityLog
+		if err := db.DB.Where("source_ref = ?", activity.SourceRef).First(&existing).Error; err != nil {
+			db.DB.Create(&activity)
+		}
+	}
+
 	// Slack returns history newest-first. We iterate in reverse to build chronological transcript.
 	validMsgCount := 0
 	for i := len(allMessages) - 1; i >= 0; i-- {
@@ -125,6 +160,9 @@ func SyncSlackChannel(channelID string) (string, error) {
 
 		transcriptBuilder.WriteString(fmt.Sprintf("User %s: %s\n", msg.User, msg.Text))
 		validMsgCount++
+
+		// [PHASE 7] Log activity
+		logActivity(msg)
 
 		// Fetch threads if applicable
 		if msg.ThreadTs != "" && msg.ThreadTs == msg.Ts {
@@ -137,6 +175,9 @@ func SyncSlackChannel(channelID string) (string, error) {
 					if rMsg.Subtype == "" && rMsg.User != "" {
 						transcriptBuilder.WriteString(fmt.Sprintf("  -> Reply by User %s: %s\n", rMsg.User, rMsg.Text))
 						validMsgCount++
+
+						// [PHASE 7] Log activity
+						logActivity(rMsg)
 					}
 				}
 			}
@@ -150,6 +191,17 @@ func SyncSlackChannel(channelID string) (string, error) {
 
 	fullTranscript := transcriptBuilder.String()
 	log.Printf("[SYNC] Built Transcript (%d chars). Sending to AI for contextual extraction...", len(fullTranscript))
+
+	// [PHASE 6] Store the full transcript in Episodic Memory
+	go func(text string, chName string) {
+		err := memory.UpsertEventToQdrant(text, map[string]string{
+			"type":    "slack_transcript",
+			"channel": chName,
+		})
+		if err != nil {
+			log.Printf("[MEMORY ERROR] Failed to upsert episodic memory for %s: %v", chName, err)
+		}
+	}(fullTranscript, channelName)
 
 	// 3. Extract tasks using full context
 	router := ai.InitRouter()
@@ -194,4 +246,63 @@ func SyncSlackChannel(channelID string) (string, error) {
 	}
 
 	return fmt.Sprintf("Extracted %d tasks/events from %d Slack messages in channel %s.", len(extractedEvents), validMsgCount, channelName), nil
+}
+
+// PostSlackMessage posts a message to a specific Slack channel
+func PostSlackMessage(channelID string, message string) error {
+	if os.Getenv("DRY_RUN") == "true" {
+		log.Printf("[DRY-RUN] Would post to Slack channel %s: %s", channelID, message)
+		return nil
+	}
+
+	token := os.Getenv("SLACK_BOT_TOKEN")
+	if token == "" {
+		return fmt.Errorf("SLACK_BOT_TOKEN is missing")
+	}
+
+	apiURL := "https://slack.com/api/chat.postMessage"
+
+	payload := map[string]interface{}{
+		"channel": channelID,
+		"text":    message,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to post slack message, status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Ok    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return err
+	}
+
+	if !result.Ok {
+		return fmt.Errorf("slack api error: %s", result.Error)
+	}
+
+	log.Printf("[SLACK] Successfully posted message to channel %s", channelID)
+	return nil
 }

@@ -40,3 +40,9 @@ frontend/tsconfig.tsbuildinfo
 .eslintcache
 .npm-cache/
 .husky/_/
+
+# Ralph working files
+prd.json
+progress.txt
+.last-branch
+archive/

@@ -18,21 +18,36 @@ import (
 )
 
 type Router struct {
-	openrouterKey string
-	deepseekKey   string
-	geminiKey     string
-	groqKey       string
-	edenKey       string
+	cerebrasKey string
+	groqKey     string
+	geminiKey   string
+	freeLLMKey  string
 }
 
 // InitRouter initializes the 4-Tier AI Router
 func InitRouter() *Router {
 	return &Router{
-		openrouterKey: os.Getenv("OPENROUTER_API_KEY"),
-		deepseekKey:   os.Getenv("DEEPSEEK_API_KEY"),
-		geminiKey:     os.Getenv("GEMINI_API_KEY"),
-		groqKey:       os.Getenv("GROQ_API_KEY"),
-		edenKey:       os.Getenv("EDEN_API_KEY"),
+		cerebrasKey: os.Getenv("CEREBRAS_FREE_KEY"),
+		groqKey:     os.Getenv("GROQ_API_KEY"),
+		geminiKey:   os.Getenv("GEMINI_API_KEY"),
+		freeLLMKey:  os.Getenv("FREE_LLM_API_KEY"),
+	}
+}
+
+// tier1Providers returns high-frequency Free providers (Groq/Cerebras)
+func (r *Router) tier1Providers() []Provider {
+	return []Provider{
+		{BaseURL: "https://api.groq.com/openai/v1", Key: r.groqKey, Model: "llama-3.1-8b-instant", Name: "Groq"},
+		{BaseURL: "https://api.cerebras.ai/v1", Key: r.cerebrasKey, Model: "llama3.1-8b", Name: "Cerebras"},
+		{BaseURL: "https://api.freellmapi.com/v1", Key: r.freeLLMKey, Model: "qwen3-coder:480b", Name: "FreeLLMAPI"},
+	}
+}
+
+// tier2Providers returns heavy-lifter Free providers (Gemini Flash)
+func (r *Router) tier2Providers() []Provider {
+	return []Provider{
+		{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", Key: r.geminiKey, Model: "gemini-1.5-flash", Name: "Gemini"},
+		{BaseURL: "https://api.freellmapi.com/v1", Key: r.freeLLMKey, Model: "gemini-2.5-flash", Name: "FreeLLMAPI-Fallback"},
 	}
 }
 
@@ -68,12 +83,8 @@ func executeWithFallback(ctx context.Context, req openai.ChatCompletionRequest, 
 // 1. Chat + Extraction (The Parser)
 // Strictly handles Tool Calling to parse JSON events from the unstructured chat.
 func (r *Router) Extract(ctx context.Context, history []map[string]string) ([]events.OperationalEvent, error) {
-	providers := []Provider{
-		{BaseURL: "https://api.edenai.run/v3", Key: r.edenKey, Model: "openai/gpt-4o-mini", Name: "EdenAI"},
-		{BaseURL: "https://openrouter.ai/api/v1", Key: r.openrouterKey, Model: "google/gemini-2.0-flash-lite-001", Name: "OpenRouter"},
-		{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", Key: r.geminiKey, Model: "gemini-1.5-flash", Name: "Gemini"},
-		{BaseURL: "https://api.groq.com/openai/v1", Key: r.groqKey, Model: "llama-3.3-70b-versatile", Name: "Groq"},
-	}
+	// Use Tier 1 High-Frequency providers for extraction
+	providers := r.tier1Providers()
 
 	tools := []openai.Tool{
 		{
@@ -290,12 +301,8 @@ func (r *Router) Extract(ctx context.Context, history []map[string]string) ([]ev
 // 2. Fast Interactions (The Voice)
 // Instantly generates the natural language UI response.
 func (r *Router) Converse(ctx context.Context, history []map[string]string, extractedEvents []events.OperationalEvent) (string, error) {
-	providers := []Provider{
-		{BaseURL: "https://api.edenai.run/v3", Key: r.edenKey, Model: "openai/gpt-4o-mini", Name: "EdenAI"},
-		{BaseURL: "https://openrouter.ai/api/v1", Key: r.openrouterKey, Model: "google/gemini-2.0-flash-lite-001", Name: "OpenRouter"},
-		{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", Key: r.geminiKey, Model: "gemini-1.5-flash", Name: "Gemini"},
-		{BaseURL: "https://api.groq.com/openai/v1", Key: r.groqKey, Model: "llama-3.3-70b-versatile", Name: "Groq"},
-	}
+	// Use Tier 1 High-Frequency providers for chat UI
+	providers := r.tier1Providers()
 
 	if len(providers) == 0 {
 		if len(extractedEvents) > 0 {
@@ -512,12 +519,8 @@ func (r *Router) Converse(ctx context.Context, history []map[string]string, extr
 // 3. Complex Reasoning (The Analyzer)
 // Used for deep analysis, report generation, and priority conflict resolution.
 func (r *Router) Reason(ctx context.Context, prompt string) (string, error) {
-	providers := []Provider{
-		{BaseURL: "https://api.edenai.run/v3", Key: r.edenKey, Model: "openai/gpt-4o", Name: "EdenAI-Reasoning"},
-		{BaseURL: "https://openrouter.ai/api/v1", Key: r.openrouterKey, Model: "deepseek/deepseek-chat", Name: "OpenRouter-DeepSeek"},
-		{BaseURL: "https://api.deepseek.com/v1", Key: r.deepseekKey, Model: "deepseek-chat", Name: "DeepSeek-Direct"},
-		{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", Key: r.geminiKey, Model: "gemini-1.5-pro", Name: "Gemini-Pro"},
-	}
+	// Use Tier 2 Heavy-Lifter providers for complex reasoning
+	providers := r.tier2Providers()
 
 	if len(providers) == 0 {
 		return "", fmt.Errorf("no reasoning engine available")
