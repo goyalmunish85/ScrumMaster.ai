@@ -64,6 +64,7 @@ func main() {
 		}
 	})
 
+	mux.HandleFunc("/api/tasks", tasks.GetTasksHandler)
 	mux.HandleFunc("/api/v1/tasks", tasks.GetTasksHandler)
 	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
 
