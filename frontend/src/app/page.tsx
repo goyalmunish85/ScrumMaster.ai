@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import TaskTable from '../components/TaskTable';
 
 type Message = {
   id: string;
@@ -50,6 +51,7 @@ export default function Home() {
 
   // Sync Dashboard
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showTaskTableModal, setShowTaskTableModal] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncPlatform, setSyncPlatform] = useState('');
@@ -567,6 +569,20 @@ export default function Home() {
                   strokeWidth={2}
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowTaskTableModal(true)}
+              className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors shadow-sm group relative"
+              title="View Full Task Table"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform duration-300"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </button>
             <button
@@ -1141,6 +1157,11 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Task Table Modal */}
+      {showTaskTableModal && (
+        <TaskTable onClose={() => setShowTaskTableModal(false)} />
       )}
     </div>
   );
