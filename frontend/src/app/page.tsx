@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import GlobalTimeline from '../components/GlobalTimeline';
 
 type Message = {
   id: string;
@@ -51,6 +52,9 @@ export default function Home() {
   // Sync Dashboard
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+
+  // Timeline Dashboard
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncPlatform, setSyncPlatform] = useState('');
   const [syncTargetId, setSyncTargetId] = useState('');
@@ -585,6 +589,25 @@ export default function Home() {
                   strokeLinejoin="round"
                   strokeWidth={2}
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowTimelineModal(true)}
+              className="p-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 hover:bg-fuchsia-500/20 transition-colors shadow-sm group relative"
+              title="View Global Timeline"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
             </button>
@@ -1138,6 +1161,63 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Timeline Modal */}
+      {showTimelineModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div
+            className="absolute inset-0 bg-[#0B0F19]/80 backdrop-blur-sm"
+            onClick={() => setShowTimelineModal(false)}
+          ></div>
+          <div className="relative w-full max-w-4xl max-h-[85vh] bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/50">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-fuchsia-500/20 flex items-center justify-center border border-fuchsia-500/30">
+                  <svg
+                    className="w-5 h-5 text-fuchsia-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-slate-100">
+                  Global Timeline
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowTimelineModal(false)}
+                className="h-10 w-10 rounded-xl flex items-center justify-center hover:bg-slate-800 text-slate-500 transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#0B0F19]">
+               <GlobalTimeline />
             </div>
           </div>
         </div>
