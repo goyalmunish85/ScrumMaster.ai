@@ -1,13 +1,44 @@
 package tasks
 
 import (
+	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"net/http"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/aios/backend/internal/db"
 	"github.com/aios/backend/internal/models"
 )
+
+var (
+	tasksCache      []OptimizedTask
+	cacheMutex      sync.RWMutex
+	cacheExpiration time.Time
+)
+
+const cacheDuration = 30 * time.Second
+
+type OptimizedTask struct {
+	ID         string            `json:"id"`
+	Title      string            `json:"title"`
+	Status     models.TaskStatus `json:"status"`
+	Priority   string            `json:"priority"`
+	Labels     string            `json:"labels"`
+	Project    string            `json:"project"`
+	JiraKey    string            `json:"jira_key"`
+	Team       string            `json:"team"`
+	TaskType   string            `json:"task_type"`
+	Sprint     string            `json:"sprint"`
+	ParentKey  string            `json:"parent_key"`
+	SourceName string            `json:"source_name"`
+	DueDate    *time.Time        `json:"due_date"`
+	CreatedAt  time.Time         `json:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+}
 
 // GetTasksHandler fetches all active tasks from the database.
 func GetTasksHandler(w http.ResponseWriter, r *http.Request) {
@@ -16,17 +47,70 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheMutex.RLock()
+	if time.Now().Before(cacheExpiration) && tasksCache != nil {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(w)
+			defer gz.Close()
+			json.NewEncoder(gz).Encode(tasksCache)
+		} else {
+			json.NewEncoder(w).Encode(tasksCache)
+		}
+		cacheMutex.RUnlock()
+		return
+	}
+	cacheMutex.RUnlock()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	var allTasks []models.Task
 	// Order by most recently updated so the dashboard feels lively
-	result := db.DB.Order("updated_at desc").Find(&allTasks)
+	result := db.DB.WithContext(ctx).Order("updated_at desc").Find(&allTasks)
 
 	if result.Error != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
+	optimizedTasks := make([]OptimizedTask, len(allTasks))
+	for i, t := range allTasks {
+		optimizedTasks[i] = OptimizedTask{
+			ID:         t.ID,
+			Title:      t.Title,
+			Status:     t.Status,
+			Priority:   t.Priority,
+			Labels:     t.Labels,
+			Project:    t.Project,
+			JiraKey:    t.JiraKey,
+			Team:       t.Team,
+			TaskType:   t.TaskType,
+			Sprint:     t.Sprint,
+			ParentKey:  t.ParentKey,
+			SourceName: t.SourceName,
+			DueDate:    t.DueDate,
+			CreatedAt:  t.CreatedAt,
+			UpdatedAt:  t.UpdatedAt,
+		}
+	}
+
+	cacheMutex.Lock()
+	tasksCache = optimizedTasks
+	cacheExpiration = time.Now().Add(cacheDuration)
+	cacheMutex.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(allTasks)
+
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		json.NewEncoder(gz).Encode(optimizedTasks)
+	} else {
+		json.NewEncoder(w).Encode(optimizedTasks)
+	}
 }
 
 // ExportTasksHandler fetches all active tasks and returns them as a CSV file.
