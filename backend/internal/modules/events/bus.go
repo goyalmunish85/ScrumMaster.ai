@@ -134,14 +134,23 @@ func StartListener() {
 				}
 			case TaskStatusChanged:
 				var payload struct {
-					TaskName string `json:"task_name"`
-					Status   string `json:"status"`
+					TaskName  string `json:"task_name"`
+					Status    string `json:"status"`
+					Timestamp string `json:"timestamp"`
 				}
 				if err := json.Unmarshal(event.Payload, &payload); err == nil {
 					task := getOrCreateTask(payload.TaskName)
 					if task != nil {
 						db.DB.Model(task).Update("status", payload.Status)
 						eventRecord.TaskID = &task.ID
+					}
+					// If a timestamp is provided (e.g. from Jira changelog), use it for the event record
+					if payload.Timestamp != "" {
+						if parsedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", payload.Timestamp); err == nil {
+							eventRecord.CreatedAt = parsedTime
+						} else if parsedTime, err := time.Parse(time.RFC3339, payload.Timestamp); err == nil {
+							eventRecord.CreatedAt = parsedTime
+						}
 					}
 				}
 			case TaskDueDate:
