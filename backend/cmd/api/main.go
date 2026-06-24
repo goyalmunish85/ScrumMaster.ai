@@ -34,6 +34,7 @@ func main() {
 
 	// Identity/Auth Routes
 	mux.HandleFunc("/api/activities", events.GetActivitiesHandler)
+	mux.HandleFunc("/api/search", events.SearchEventsHandler)
 
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
 
