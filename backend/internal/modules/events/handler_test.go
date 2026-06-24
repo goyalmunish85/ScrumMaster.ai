@@ -62,7 +62,7 @@ func TestGetActivitiesHandler(t *testing.T) {
 	}
 
 	// Check response body
-	var returnedEvents []models.OperationalEventRecord
+	var returnedEvents []events.ActivityResponse
 	err = json.NewDecoder(rr.Body).Decode(&returnedEvents)
 	if err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -86,5 +86,86 @@ func TestGetActivitiesHandler(t *testing.T) {
 	if rrUnauth.Code != http.StatusUnauthorized {
 		t.Errorf("handler returned wrong status code for unauth: got %v want %v",
 			rrUnauth.Code, http.StatusUnauthorized)
+	}
+
+	// Test invalid limit
+	reqInvalidLimit, _ := http.NewRequest(http.MethodGet, "/api/activities?limit=abc", nil)
+	reqInvalidLimit.Header.Set("Authorization", "Bearer mock-token")
+	rrInvalidLimit := httptest.NewRecorder()
+	handler.ServeHTTP(rrInvalidLimit, reqInvalidLimit)
+	if rrInvalidLimit.Code != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code for invalid limit: got %v want %v",
+			rrInvalidLimit.Code, http.StatusBadRequest)
+	}
+
+	// Test negative limit
+	reqNegativeLimit, _ := http.NewRequest(http.MethodGet, "/api/activities?limit=-5", nil)
+	reqNegativeLimit.Header.Set("Authorization", "Bearer mock-token")
+	rrNegativeLimit := httptest.NewRecorder()
+	handler.ServeHTTP(rrNegativeLimit, reqNegativeLimit)
+	if rrNegativeLimit.Code != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code for negative limit: got %v want %v",
+			rrNegativeLimit.Code, http.StatusBadRequest)
+	}
+
+	// Test invalid offset
+	reqInvalidOffset, _ := http.NewRequest(http.MethodGet, "/api/activities?offset=abc", nil)
+	reqInvalidOffset.Header.Set("Authorization", "Bearer mock-token")
+	rrInvalidOffset := httptest.NewRecorder()
+	handler.ServeHTTP(rrInvalidOffset, reqInvalidOffset)
+	if rrInvalidOffset.Code != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code for invalid offset: got %v want %v",
+			rrInvalidOffset.Code, http.StatusBadRequest)
+	}
+
+	// Test negative offset
+	reqNegativeOffset, _ := http.NewRequest(http.MethodGet, "/api/activities?offset=-5", nil)
+	reqNegativeOffset.Header.Set("Authorization", "Bearer mock-token")
+	rrNegativeOffset := httptest.NewRecorder()
+	handler.ServeHTTP(rrNegativeOffset, reqNegativeOffset)
+	if rrNegativeOffset.Code != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code for negative offset: got %v want %v",
+			rrNegativeOffset.Code, http.StatusBadRequest)
+	}
+
+	// Test PII Scrubbing
+	testEvent3 := models.OperationalEventRecord{
+		ID:        "3",
+		EventType: "TASK_ASSIGNED",
+		Payload:   `{"task_name":"Test Task 3", "assignee":"john.doe@example.com", "reporter":"jane.doe@example.com"}`,
+		CreatedAt: now.Add(time.Hour),
+	}
+	db.DB.Create(&testEvent3)
+
+	reqPII, _ := http.NewRequest(http.MethodGet, "/api/activities?limit=1", nil)
+	reqPII.Header.Set("Authorization", "Bearer mock-token")
+	rrPII := httptest.NewRecorder()
+	handler.ServeHTTP(rrPII, reqPII)
+
+	if rrPII.Code != http.StatusOK {
+		t.Errorf("handler returned wrong status code for PII check: got %v want %v",
+			rrPII.Code, http.StatusOK)
+	}
+
+	var piiEvents []events.ActivityResponse
+	err = json.NewDecoder(rrPII.Body).Decode(&piiEvents)
+	if err != nil {
+		t.Fatalf("failed to decode response for PII check: %v", err)
+	}
+
+	if len(piiEvents) != 1 {
+		t.Fatalf("expected 1 event for PII check, got %d", len(piiEvents))
+	}
+
+	if piiEvents[0].ID != "3" {
+		t.Errorf("expected event ID 3, got %v", piiEvents[0].ID)
+	}
+
+	if _, ok := piiEvents[0].Payload["assignee"]; ok {
+		t.Errorf("expected assignee to be scrubbed, but it was found in payload")
+	}
+
+	if _, ok := piiEvents[0].Payload["reporter"]; ok {
+		t.Errorf("expected reporter to be scrubbed, but it was found in payload")
 	}
 }
