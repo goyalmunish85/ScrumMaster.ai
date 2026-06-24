@@ -51,6 +51,8 @@ func main() {
 	})
 	mux.HandleFunc("/api/v1/chat/evaluate", chat.EvaluateMessageHandler)
 
+	mux.HandleFunc("/api/v1/ws", events.WsHandler)
+
 	mux.HandleFunc("/api/v1/integrations/sync", integrations.SyncIntegrationsHandler)
 	mux.HandleFunc("/api/v1/integrations/logs", integrations.GetSyncLogsHandler)
 	mux.HandleFunc("/api/v1/integrations/targets", func(w http.ResponseWriter, r *http.Request) {

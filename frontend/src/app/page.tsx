@@ -86,6 +86,51 @@ export default function Home() {
   };
 
   useEffect(() => {
+    let ws: WebSocket;
+    let reconnectTimeout: NodeJS.Timeout;
+    let attempt = 0;
+
+    const connectWebSocket = () => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const wsUrl = apiUrl.replace(/^http/, 'ws') + '/api/v1/ws';
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'task_updated') {
+            fetchTasks();
+          }
+        } catch (err) {
+          console.error('Failed to parse websocket message:', err);
+        }
+      };
+
+      ws.onopen = () => {
+        attempt = 0; // reset attempts on success
+      };
+
+      ws.onclose = () => {
+        // Exponential backoff reconnect
+        attempt++;
+        const timeout = Math.min(1000 * Math.pow(2, attempt), 30000);
+        reconnectTimeout = setTimeout(connectWebSocket, timeout);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.onclose = null; // Prevent reconnect loop
+        ws.close();
+      }
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (showSyncModal) {
       fetchSyncLogs(); // fetch immediately

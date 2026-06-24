@@ -8,6 +8,7 @@ import (
 	"github.com/aios/backend/internal/db"
 	"github.com/aios/backend/internal/models"
 	"github.com/aios/backend/internal/modules/memory"
+	"github.com/aios/backend/internal/modules/tasks"
 	"github.com/google/uuid"
 )
 
@@ -282,6 +283,13 @@ func StartListener() {
 			// Save the audit record
 			if db.DB != nil {
 				db.DB.Create(&eventRecord)
+			}
+
+			// Invalidate task cache and notify connected clients for task-related events
+			switch event.Type {
+			case TaskCreated, TaskAssigned, TaskCompleted, TaskBlocked, TaskStatusChanged, TaskDueDate, BulkTasks:
+				tasks.InvalidateCache()
+				BroadcastEvent("task_updated")
 			}
 		}
 	}()
