@@ -40,3 +40,7 @@ frontend/tsconfig.tsbuildinfo
 .eslintcache
 .npm-cache/
 .husky/_/
+
+jira-config-page.png
+jira-config-page-added.png
+.last-run.json
