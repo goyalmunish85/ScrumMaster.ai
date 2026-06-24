@@ -26,7 +26,20 @@ export default function IntegrationsPanel() {
   };
 
   useEffect(() => {
-    fetchTargets();
+    let isMounted = true;
+    const fetchInit = async () => {
+      try {
+        const res = await fetch(
+          'http://localhost:8080/api/v1/integrations/targets'
+        );
+        const data = await res.json();
+        if (isMounted) setTargets(data || []);
+      } catch (err) {
+        console.error('Failed to fetch targets:', err);
+      }
+    };
+    fetchInit();
+    return () => { isMounted = false; };
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
