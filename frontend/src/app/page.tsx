@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
+import SemanticSearchBar from '../components/SemanticSearchBar';
 
 type Message = {
   id: string;
@@ -291,6 +292,9 @@ export default function Home() {
               <span className="text-indigo-300">Operations Chat</span>
             </h1>
           </div>
+
+          <SemanticSearchBar />
+
           <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full shadow-inner">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
