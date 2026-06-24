@@ -24,7 +24,16 @@ const (
 	TaskStatusChanged EventType = "TASK_STATUS_CHANGED"
 	RiskDetected      EventType = "RISK_DETECTED"
 	BulkTasks         EventType = "BULK_TASKS"
+	FileAttached      EventType = "FILE_ATTACHED"
 )
+
+type FileAttachedPayload struct {
+	FileID    string `json:"file_id"`
+	FileName  string `json:"file_name"`
+	FileType  string `json:"file_type"`
+	Channel   string `json:"channel"`
+	Timestamp string `json:"timestamp"`
+}
 
 type OperationalEvent struct {
 	Type    EventType       `json:"type"`

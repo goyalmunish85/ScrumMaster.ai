@@ -16,13 +16,20 @@ import (
 	"github.com/aios/backend/internal/modules/events"
 )
 
+type SlackFile struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Filetype string `json:"filetype"`
+}
+
 type SlackMessage struct {
-	Type     string `json:"type"`
-	Subtype  string `json:"subtype"`
-	Text     string `json:"text"`
-	User     string `json:"user"`
-	Ts       string `json:"ts"`
-	ThreadTs string `json:"thread_ts"`
+	Type     string      `json:"type"`
+	Subtype  string      `json:"subtype"`
+	Text     string      `json:"text"`
+	User     string      `json:"user"`
+	Ts       string      `json:"ts"`
+	ThreadTs string      `json:"thread_ts"`
+	Files    []SlackFile `json:"files"`
 }
 
 type SlackChannelInfoResponse struct {
@@ -126,6 +133,30 @@ func SyncSlackChannel(channelID string) (string, error) {
 		transcriptBuilder.WriteString(fmt.Sprintf("User %s: %s\n", msg.User, msg.Text))
 		validMsgCount++
 
+		if len(msg.Files) > 0 {
+			for _, f := range msg.Files {
+				if f.ID == "" || f.Name == "" {
+					continue
+				}
+				payload, err := json.Marshal(events.FileAttachedPayload{
+					FileID:    f.ID,
+					FileName:  f.Name,
+					FileType:  f.Filetype,
+					Channel:   channelID,
+					Timestamp: msg.Ts,
+				})
+				if err == nil {
+					events.Publish(events.OperationalEvent{
+						Type:    events.FileAttached,
+						Payload: payload,
+					})
+				} else {
+					log.Printf("[SYNC] Warning: failed to marshal file payload for %s: %v", f.ID, err)
+				}
+				transcriptBuilder.WriteString(fmt.Sprintf("User %s attached a file: %s (type: %s)\n", msg.User, f.Name, f.Filetype))
+			}
+		}
+
 		// Fetch threads if applicable
 		if msg.ThreadTs != "" && msg.ThreadTs == msg.Ts {
 			repliesURL := fmt.Sprintf("https://slack.com/api/conversations.replies?channel=%s&ts=%s", channelID, msg.ThreadTs)
@@ -137,6 +168,30 @@ func SyncSlackChannel(channelID string) (string, error) {
 					if rMsg.Subtype == "" && rMsg.User != "" {
 						transcriptBuilder.WriteString(fmt.Sprintf("  -> Reply by User %s: %s\n", rMsg.User, rMsg.Text))
 						validMsgCount++
+
+						if len(rMsg.Files) > 0 {
+							for _, f := range rMsg.Files {
+								if f.ID == "" || f.Name == "" {
+									continue
+								}
+								payload, err := json.Marshal(events.FileAttachedPayload{
+									FileID:    f.ID,
+									FileName:  f.Name,
+									FileType:  f.Filetype,
+									Channel:   channelID,
+									Timestamp: rMsg.Ts,
+								})
+								if err == nil {
+									events.Publish(events.OperationalEvent{
+										Type:    events.FileAttached,
+										Payload: payload,
+									})
+								} else {
+									log.Printf("[SYNC] Warning: failed to marshal thread file payload for %s: %v", f.ID, err)
+								}
+								transcriptBuilder.WriteString(fmt.Sprintf("  -> Reply by User %s attached a file: %s (type: %s)\n", rMsg.User, f.Name, f.Filetype))
+							}
+						}
 					}
 				}
 			}
