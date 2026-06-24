@@ -59,6 +59,61 @@ export default function Home() {
 
   const [hasMounted, setHasMounted] = useState(false);
   const [evaluatingMsgId, setEvaluatingMsgId] = useState<string | null>(null);
+
+  const handleExportCSV = () => {
+    if (tasks.length === 0) {
+      alert('No tasks to export.');
+      return;
+    }
+
+    // GDPR compliance: Omit 'assignee' and 'client' (PII)
+    const header = [
+      'Jira Key',
+      'Title',
+      'Status',
+      'Team',
+      'Task Type',
+      'Sprint',
+      'Source Name',
+      'Due Date',
+      'Updated At',
+    ];
+
+    const escapeCSV = (str: string | null | undefined) => {
+      if (!str) return '';
+      const stringified = String(str);
+      if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
+        return `"${stringified.replace(/"/g, '""')}"`;
+      }
+      return stringified;
+    };
+
+    const rows = tasks.map((t) => [
+      escapeCSV(t.id),
+      escapeCSV(t.title),
+      escapeCSV(t.status),
+      escapeCSV(t.team),
+      escapeCSV(t.task_type),
+      escapeCSV(t.sprint),
+      escapeCSV(t.source_name),
+      escapeCSV(t.due_date ? t.due_date.substring(0, 10) : ''),
+      escapeCSV(new Date(t.updated_at).toLocaleString()),
+    ]);
+
+    const csvContent = [header, ...rows]
+      .map((row) => row.join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'tasks_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
   const [evalFeedback, setEvalFeedback] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -550,12 +605,7 @@ export default function Home() {
           </h2>
           <div className="flex gap-2">
             <button
-              onClick={() =>
-                window.open(
-                  'http://localhost:8080/api/v1/tasks/export',
-                  '_blank'
-                )
-              }
+              onClick={handleExportCSV}
               className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-colors shadow-sm group relative"
               title="Export Tasks as CSV"
             >
