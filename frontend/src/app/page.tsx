@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import TaskTable from '../components/TaskTable';
 
 type Message = {
   id: string;
@@ -52,6 +53,9 @@ export default function Home() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Task Grid Modal
+  const [showTaskTableModal, setShowTaskTableModal] = useState(false);
   const [syncPlatform, setSyncPlatform] = useState('');
   const [syncTargetId, setSyncTargetId] = useState('');
   const [syncFullSync, setSyncFullSync] = useState(false);
@@ -567,6 +571,20 @@ export default function Home() {
                   strokeWidth={2}
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowTaskTableModal(true)}
+              className="p-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 hover:bg-fuchsia-500/20 transition-colors shadow-sm group relative"
+              title="View Task Grid"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform duration-300"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </button>
             <button
@@ -1138,6 +1156,51 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Grid Modal */}
+      {showTaskTableModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-6xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="h-16 px-6 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/50 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-fuchsia-500/20 flex items-center justify-center border border-fuchsia-500/30">
+                  <svg className="w-4 h-4 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-slate-100">
+                  Task Master Grid
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowTaskTableModal(false)}
+                className="h-10 w-10 rounded-xl flex items-center justify-center hover:bg-slate-800 text-slate-500 transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-hidden p-6 bg-[#0B0F19]">
+              <TaskTable />
             </div>
           </div>
         </div>
