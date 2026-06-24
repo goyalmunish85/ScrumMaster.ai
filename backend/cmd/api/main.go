@@ -13,6 +13,7 @@ import (
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/tasks"
+	"github.com/aios/backend/internal/modules/ws"
 	"github.com/joho/godotenv"
 )
 
@@ -66,6 +67,9 @@ func main() {
 	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
 
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
+
+	// WebSocket Routes
+	mux.HandleFunc("/api/v1/ws", ws.HandleConnections)
 
 	// Simple CORS Middleware
 	corsHandler := func(next http.Handler) http.Handler {

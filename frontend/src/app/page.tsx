@@ -74,6 +74,33 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8080/api/v1/ws');
+
+    ws.onopen = () => {
+      console.log('WebSocket connection established');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'task_updated') {
+          console.log('Received task_updated event, fetching tasks...');
+          fetchTasks();
+        }
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
   const fetchSyncLogs = async () => {
     try {
       const res = await fetch('http://localhost:8080/api/v1/integrations/logs');
