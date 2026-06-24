@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"time"
 
@@ -14,25 +13,6 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 	"github.com/sashabaranov/go-openai"
 )
-
-const maxRetries = 3
-
-func withRetry(operation func() error) error {
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		err = operation()
-		if err == nil {
-			return nil
-		}
-		if i == maxRetries-1 {
-			break
-		}
-		backoff := time.Duration(math.Pow(2, float64(i))) * time.Second
-		log.Printf("[RETRY] Network call failed: %v. Retrying in %v...", err, backoff)
-		time.Sleep(backoff)
-	}
-	return fmt.Errorf("operation failed after %d retries: %v", maxRetries, err)
-}
 
 // GenerateEmbedding uses Google Gemini (via OpenAI compatibility) to generate a 768-d vector
 func GenerateEmbedding(text string) ([]float32, error) {
@@ -45,20 +25,10 @@ func GenerateEmbedding(text string) ([]float32, error) {
 	cfg.BaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 	client := openai.NewClientWithConfig(cfg)
 
-	var resp openai.EmbeddingResponse
-	var err error
-
-	operation := func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // Strict timeout
-		defer cancel()
-		resp, err = client.CreateEmbeddings(ctx, openai.EmbeddingRequest{
-			Model: "text-embedding-004", // Gemini embedding model
-			Input: text,
-		})
-		return err
-	}
-
-	err = withRetry(operation)
+	resp, err := client.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
+		Model: "text-embedding-004", // Gemini embedding model
+		Input: text,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -105,20 +75,16 @@ func UpsertTaskToQdrant(task *models.Task) error {
 		Payload: payload,
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	wait := true
+	_, err = db.QdrantClient.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: db.TasksCollection,
+		Wait:           &wait,
+		Points:         []*qdrant.PointStruct{point},
+	})
 
-	operation := func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, err := db.QdrantClient.Upsert(ctx, &qdrant.UpsertPoints{
-			CollectionName: db.TasksCollection,
-			Wait:           &wait,
-			Points:         []*qdrant.PointStruct{point},
-		})
-		return err
-	}
-
-	err = withRetry(operation)
 	if err != nil {
 		return fmt.Errorf("failed to upsert point to Qdrant: %v", err)
 	}
@@ -138,22 +104,15 @@ func SearchTasksSemantic(query string, limit uint64) ([]models.Task, error) {
 		return nil, fmt.Errorf("failed to generate embedding for query: %v", err)
 	}
 
-	var searchResults []*qdrant.ScoredPoint
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	operation := func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		var opErr error
-		searchResults, opErr = db.QdrantClient.Query(ctx, &qdrant.QueryPoints{
-			CollectionName: db.TasksCollection,
-			Query:          qdrant.NewQuery(vector...),
-			Limit:          &limit,
-			WithPayload:    qdrant.NewWithPayload(true),
-		})
-		return opErr
-	}
-
-	err = withRetry(operation)
+	searchResults, err := db.QdrantClient.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: db.TasksCollection,
+		Query:          qdrant.NewQuery(vector...),
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search Qdrant: %v", err)
 	}
@@ -195,10 +154,4 @@ func SearchTasksSemantic(query string, limit uint64) ([]models.Task, error) {
 	}
 
 	return tasks, nil
-}
-
-// SearchEventsSemantic searches Qdrant for events (which are stored as tasks in the vector DB)
-func SearchEventsSemantic(query string, limit uint64) ([]models.Task, error) {
-	// The prompt asks to call SearchTasksSemantic for this implementation
-	return SearchTasksSemantic(query, limit)
 }

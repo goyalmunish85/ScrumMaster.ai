@@ -11,7 +11,6 @@ import (
 	"github.com/aios/backend/internal/modules/identity"
 	"github.com/aios/backend/internal/modules/integrations"
 	"github.com/aios/backend/internal/modules/ops"
-	"github.com/aios/backend/internal/modules/search"
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/tasks"
 	"github.com/joho/godotenv"
@@ -67,8 +66,6 @@ func main() {
 	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
 
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
-
-	mux.HandleFunc("/api/search", search.SearchHandler)
 
 	// Simple CORS Middleware
 	corsHandler := func(next http.Handler) http.Handler {
