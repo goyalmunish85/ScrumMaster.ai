@@ -26,8 +26,9 @@ func setupTestDB(t *testing.T) {
 	}
 
 	db.DB.Exec("DELETE FROM tasks")
+	db.DB.Exec("DELETE FROM operational_event_records")
 
-	err = db.DB.AutoMigrate(&models.Task{})
+	err = db.DB.AutoMigrate(&models.Task{}, &models.OperationalEventRecord{})
 	if err != nil {
 		t.Fatalf("Failed to migrate database schemas: %v", err)
 	}
@@ -152,6 +153,107 @@ func TestGetTasksHandler_Cache(t *testing.T) {
 	json.Unmarshal(rr3.Body.Bytes(), &responseTasks3)
 	if len(responseTasks3) != 2 {
 		t.Fatalf("Expected 2 tasks after cache expired, got %d", len(responseTasks3))
+	}
+}
+
+func TestGetTaskHandler_Success(t *testing.T) {
+	setupTestDB(t)
+
+	taskID := "detail-test-id"
+	task := models.Task{
+		ID:          taskID,
+		Title:       "Detail Task",
+		Description: "Detailed description",
+		Assignee:    "Sensitive Assignee",
+	}
+	db.DB.Create(&task)
+
+	eventID := "event-id-1"
+	eventPayload := `{"status": "DONE", "assignee": "Alice", "reporter": "Bob", "nested": {"email": "test@test.com", "other": "info"}}`
+	event := models.OperationalEventRecord{
+		ID:        eventID,
+		TaskID:    &taskID,
+		EventType: "TASK_UPDATED",
+		Payload:   eventPayload,
+		CreatedAt: time.Now(),
+	}
+	db.DB.Create(&event)
+
+	req, err := http.NewRequest("GET", "/api/tasks/"+taskID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/tasks/{id}", GetTaskHandler)
+	mux.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	var response TaskDetailResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response body: %v", err)
+	}
+
+	if response.ID != taskID {
+		t.Errorf("Expected task ID %s, got %s", taskID, response.ID)
+	}
+	if response.Description != "Detailed description" {
+		t.Errorf("Expected Description 'Detailed description', got '%s'", response.Description)
+	}
+
+	// Verify GDPR on main task (raw JSON check)
+	var rawMap map[string]interface{}
+	json.Unmarshal(rr.Body.Bytes(), &rawMap)
+	if _, exists := rawMap["assignee"]; exists {
+		t.Errorf("Assignee should be omitted from root payload")
+	}
+
+	// Verify GDPR on linked activities
+	if len(response.Activities) != 1 {
+		t.Fatalf("Expected 1 activity, got %d", len(response.Activities))
+	}
+
+	actPayload, ok := response.Activities[0].Payload.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Activity payload is not a map")
+	}
+	if _, exists := actPayload["assignee"]; exists {
+		t.Errorf("Assignee should be omitted from activity payload")
+	}
+	if _, exists := actPayload["reporter"]; exists {
+		t.Errorf("Reporter should be omitted from activity payload")
+	}
+	nestedMap, ok := actPayload["nested"].(map[string]interface{})
+	if ok {
+		if _, exists := nestedMap["email"]; exists {
+			t.Errorf("Email should be omitted from nested activity payload")
+		}
+		if nestedMap["other"] != "info" {
+			t.Errorf("Other field should be preserved in nested payload")
+		}
+	} else {
+		t.Errorf("Nested payload should be a map")
+	}
+}
+
+func TestGetTaskHandler_NotFound(t *testing.T) {
+	setupTestDB(t)
+
+	req, _ := http.NewRequest("GET", "/api/tasks/missing-id", nil)
+	rr := httptest.NewRecorder()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/tasks/{id}", GetTaskHandler)
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found, got %v", rr.Code)
 	}
 }
 

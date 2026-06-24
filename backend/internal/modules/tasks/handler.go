@@ -12,6 +12,7 @@ import (
 
 	"github.com/aios/backend/internal/db"
 	"github.com/aios/backend/internal/models"
+	"github.com/aios/backend/internal/utils/gdpr"
 )
 
 var (
@@ -38,6 +39,97 @@ type OptimizedTask struct {
 	DueDate    *time.Time        `json:"due_date"`
 	CreatedAt  time.Time         `json:"created_at"`
 	UpdatedAt  time.Time         `json:"updated_at"`
+}
+
+type ActivityResponse struct {
+	ID        string      `json:"id"`
+	TaskID    *string     `json:"task_id"`
+	EventType string      `json:"event_type"`
+	Payload   interface{} `json:"payload"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type TaskDetailResponse struct {
+	OptimizedTask
+	Description string             `json:"description"`
+	Activities  []ActivityResponse `json:"activities"`
+}
+
+// GetTaskHandler fetches a single task and its linked activity logs by ID.
+func GetTaskHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "Task ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	var task models.Task
+	result := db.DB.WithContext(ctx).First(&task, "id = ?", id)
+	if result.Error != nil {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	var events []models.OperationalEventRecord
+	db.DB.WithContext(ctx).Order("created_at desc").Find(&events, "task_id = ?", id)
+
+	activities := []ActivityResponse{}
+	for _, event := range events {
+		var payload interface{}
+		if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
+			payload = make(map[string]interface{})
+		}
+
+		sanitizedPayload := gdpr.SanitizePayload(payload)
+
+		activities = append(activities, ActivityResponse{
+			ID:        event.ID,
+			TaskID:    event.TaskID,
+			EventType: event.EventType,
+			Payload:   sanitizedPayload,
+			CreatedAt: event.CreatedAt,
+		})
+	}
+
+	response := TaskDetailResponse{
+		OptimizedTask: OptimizedTask{
+			ID:         task.ID,
+			Title:      task.Title,
+			Status:     task.Status,
+			Priority:   task.Priority,
+			Labels:     task.Labels,
+			Project:    task.Project,
+			JiraKey:    task.JiraKey,
+			Team:       task.Team,
+			TaskType:   task.TaskType,
+			Sprint:     task.Sprint,
+			ParentKey:  task.ParentKey,
+			SourceName: task.SourceName,
+			DueDate:    task.DueDate,
+			CreatedAt:  task.CreatedAt,
+			UpdatedAt:  task.UpdatedAt,
+		},
+		Description: task.Description,
+		Activities:  activities,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		json.NewEncoder(gz).Encode(response)
+	} else {
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 // GetTasksHandler fetches all active tasks from the database.
