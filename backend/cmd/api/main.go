@@ -10,6 +10,7 @@ import (
 	"github.com/aios/backend/internal/modules/events"
 	"github.com/aios/backend/internal/modules/identity"
 	"github.com/aios/backend/internal/modules/integrations"
+	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/tasks"
@@ -86,13 +87,20 @@ func main() {
 		})
 	}
 
+	// Initialize Rate Limiter: 10 requests per second, burst size 20
+	rateLimiter := middleware.NewRateLimiter(10, 20)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	log.Printf("Starting AI-OS API server on port %s", port)
-	if err := http.ListenAndServe(":"+port, corsHandler(mux)); err != nil {
+
+	// Apply rate limiter, then CORS
+	finalHandler := corsHandler(rateLimiter.Handler(mux))
+
+	if err := http.ListenAndServe(":"+port, finalHandler); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
