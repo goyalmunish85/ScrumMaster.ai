@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
+import DailyStandup from '../components/DailyStandup';
 
 type Message = {
   id: string;
@@ -46,6 +47,7 @@ export default function Home() {
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showStandupModal, setShowStandupModal] = useState(false);
 
   // Sync Dashboard
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -541,6 +543,25 @@ export default function Home() {
             Live Dashboard
           </h2>
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowStandupModal(true)}
+              className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors shadow-sm group relative"
+              title="View Daily Briefing"
+            >
+              <svg
+                className="w-4 h-4 group-hover:scale-110 transition-transform duration-300"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </button>
             <button
               onClick={() =>
                 window.open(
@@ -1137,6 +1158,11 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Daily Standup Modal */}
+      {showStandupModal && (
+        <DailyStandup onClose={() => setShowStandupModal(false)} />
       )}
     </div>
   );
