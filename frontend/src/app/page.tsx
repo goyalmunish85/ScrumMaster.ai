@@ -62,7 +62,10 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setHasMounted(true);
+    const timer = setTimeout(() => {
+      setHasMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const fetchTasks = async () => {
@@ -88,7 +91,9 @@ export default function Home() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (showSyncModal) {
-      fetchSyncLogs(); // fetch immediately
+      setTimeout(() => {
+        fetchSyncLogs(); // fetch immediately
+      }, 0);
       interval = setInterval(fetchSyncLogs, 2000); // poll every 2 seconds
     }
     return () => {
@@ -155,12 +160,17 @@ export default function Home() {
 
   // Fetch initial messages & tasks
   useEffect(() => {
-    fetch('http://localhost:8080/api/v1/chat/messages')
-      .then((res) => res.json())
-      .then((data) => setMessages(data || []))
-      .catch((err) => console.error('Failed to fetch messages:', err));
-
-    fetchTasks();
+    const initFetch = async () => {
+      try {
+        const res = await fetch('http://localhost:8080/api/v1/chat/messages');
+        const data = await res.json();
+        setMessages(data || []);
+      } catch (err) {
+        console.error('Failed to fetch messages:', err);
+      }
+      await fetchTasks();
+    };
+    initFetch();
   }, []);
 
   // Auto-scroll to bottom
