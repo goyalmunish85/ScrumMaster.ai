@@ -45,7 +45,25 @@ func GetActivitiesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For privacy/GDPR, we could filter sensitive fields if required, but payload is just task info here
+	// For privacy/GDPR, we filter sensitive fields
+	redactedKeys := []string{"email", "phone", "address", "name", "password", "token", "ssn"}
+	for i := range events {
+		var payloadData map[string]interface{}
+		if err := json.Unmarshal([]byte(events[i].Payload), &payloadData); err == nil {
+			for key := range payloadData {
+				for _, rKey := range redactedKeys {
+					if key == rKey {
+						payloadData[key] = "[REDACTED]"
+						break
+					}
+				}
+			}
+			if redactedPayload, err := json.Marshal(payloadData); err == nil {
+				events[i].Payload = string(redactedPayload)
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
 }

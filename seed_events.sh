@@ -1,0 +1,1 @@
+curl -X POST http://localhost:8080/api/v1/activities -H "Content-Type: application/json" -H "Authorization: Basic $(echo -n 'admin:admin' | base64)" -d '{"event_type": "Task Created", "payload": "{\"task_id\": \"123\", \"title\": \"Implement Timeline\", \"email\": \"user@example.com\"}"}'

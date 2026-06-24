@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import GlobalTimeline from '../components/GlobalTimeline';
 
 type Message = {
   id: string;
@@ -611,6 +612,8 @@ export default function Home() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+          <GlobalTimeline />
+
           {['BLOCKED', 'IN_PROGRESS', 'DRAFT', 'DONE'].map((statusGroup) => {
             const groupTasks = tasks.filter((t) => t.status === statusGroup);
             if (groupTasks.length === 0) return null;
