@@ -7,7 +7,38 @@ import (
 
 	"github.com/aios/backend/internal/db"
 	"github.com/aios/backend/internal/models"
+	"github.com/aios/backend/internal/modules/memory"
 )
+
+func SearchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "Missing query parameter 'q'", http.StatusBadRequest)
+		return
+	}
+
+	limit := uint64(10)
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr != "" {
+		if parsedLimit, err := strconv.ParseUint(limitStr, 10, 64); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	tasks, err := memory.SearchEventsSemantic(query, limit)
+	if err != nil {
+		http.Error(w, "Failed to search semantic events: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
+}
 
 func GetActivitiesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

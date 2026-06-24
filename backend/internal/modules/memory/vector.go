@@ -155,3 +155,8 @@ func SearchTasksSemantic(query string, limit uint64) ([]models.Task, error) {
 
 	return tasks, nil
 }
+
+// SearchEventsSemantic is a wrapper around SearchTasksSemantic for API compatibility
+func SearchEventsSemantic(query string, limit uint64) ([]models.Task, error) {
+	return SearchTasksSemantic(query, limit)
+}
