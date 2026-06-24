@@ -33,6 +33,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Identity/Auth Routes
+	mux.HandleFunc("/api/activities", events.GetActivitiesHandler)
+
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
 
 	// Chat Routes
