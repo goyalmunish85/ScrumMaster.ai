@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import MetricsCards from '../components/MetricsCards';
 
 type Message = {
   id: string;
@@ -305,6 +306,9 @@ export default function Home() {
             </span>
           </div>
         </header>
+
+        {/* Top-Level Metrics Dashboard */}
+        <MetricsCards tasks={tasks} />
 
         {/* Messages List */}
         <div className="flex-1 overflow-y-auto px-4 py-8 space-y-8 relative z-10 scroll-smooth">
