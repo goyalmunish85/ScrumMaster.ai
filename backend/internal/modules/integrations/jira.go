@@ -18,8 +18,22 @@ type JiraSearchResponse struct {
 	MaxResults int               `json:"maxResults"`
 	Total      int               `json:"total"`
 	Issues     []struct {
-		Key    string                 `json:"key"`
-		Fields map[string]interface{} `json:"fields"`
+		Key       string                 `json:"key"`
+		Fields    map[string]interface{} `json:"fields"`
+		Changelog struct {
+			Histories []struct {
+				Id      string `json:"id"`
+				Author  struct {
+					DisplayName string `json:"displayName"`
+				} `json:"author"`
+				Created string `json:"created"`
+				Items   []struct {
+					Field      string `json:"field"`
+					FromString string `json:"fromString"`
+					ToString   string `json:"toString"`
+				} `json:"items"`
+			} `json:"histories"`
+		} `json:"changelog"`
 	} `json:"issues"`
 }
 
@@ -48,7 +62,7 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 	maxResults := 50
 
 	for {
-		apiURL := fmt.Sprintf("https://%s/rest/api/3/search/jql?jql=%s&expand=names&fields=*all&maxResults=%d&startAt=%d", domain, encodedJQL, maxResults, startAt)
+		apiURL := fmt.Sprintf("https://%s/rest/api/3/search/jql?jql=%s&expand=names,changelog&fields=*all&maxResults=%d&startAt=%d", domain, encodedJQL, maxResults, startAt)
 
 		req, err := http.NewRequest("GET", apiURL, nil)
 		if err != nil {
@@ -82,8 +96,9 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 
 		for _, issue := range jiraResp.Issues {
 			issueMap := map[string]interface{}{
-				"key":    issue.Key,
-				"fields": issue.Fields,
+				"key":       issue.Key,
+				"fields":    issue.Fields,
+				"changelog": issue.Changelog,
 			}
 			allIssues = append(allIssues, issueMap)
 		}
@@ -126,7 +141,19 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 		ParentKey  string `json:"parent_key"`
 		SourceName string `json:"source_name"`
 	}
+
+	type ExtractedActivityLog struct {
+		JiraKey    string `json:"jira_key"`
+		EventType  string `json:"event_type"`
+		Field      string `json:"field"`
+		FromString string `json:"from_string"`
+		ToString   string `json:"to_string"`
+		Author     string `json:"author"`
+		CreatedAt  string `json:"created_at"`
+	}
+
 	var tasks []ExtractedTask
+	var activityLogs []ExtractedActivityLog
 
 	getStringField := func(fields map[string]interface{}, key string) string {
 		if val, ok := fields[key].(string); ok {
@@ -238,10 +265,43 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 			ParentKey:   parentKey,
 			SourceName:  "Jira: " + projectKey,
 		})
+
+		// Extract Activity Logs from Changelog
+		if changelog, ok := issueData["changelog"].(struct {
+			Histories []struct {
+				Id      string `json:"id"`
+				Author  struct {
+					DisplayName string `json:"displayName"`
+				} `json:"author"`
+				Created string `json:"created"`
+				Items   []struct {
+					Field      string `json:"field"`
+					FromString string `json:"fromString"`
+					ToString   string `json:"toString"`
+				} `json:"items"`
+			} `json:"histories"`
+		}); ok {
+			for _, history := range changelog.Histories {
+				for _, item := range history.Items {
+					if item.Field == "status" {
+						activityLogs = append(activityLogs, ExtractedActivityLog{
+							JiraKey:    key,
+							EventType:  string(events.TaskStatusChanged),
+							Field:      item.Field,
+							FromString: item.FromString,
+							ToString:   item.ToString,
+							Author:     history.Author.DisplayName,
+							CreatedAt:  history.Created,
+						})
+					}
+				}
+			}
+		}
 	}
 
 	payloadBytes, _ := json.Marshal(map[string]interface{}{
-		"tasks": tasks,
+		"tasks":         tasks,
+		"activity_logs": activityLogs,
 	})
 
 	events.Publish(events.OperationalEvent{Type: events.BulkTasks, Payload: payloadBytes})

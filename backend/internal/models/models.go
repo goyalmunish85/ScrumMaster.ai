@@ -104,3 +104,15 @@ type AIEvaluation struct {
 	FeedbackText string    `gorm:"not null" json:"feedback_text"`              // "Stop using bullet points", "Be more concise"
 	CreatedAt    time.Time `json:"created_at"`
 }
+
+type ActivityLog struct {
+	ID         string    `gorm:"type:uuid;primaryKey" json:"id"`
+	TaskID     string    `gorm:"type:uuid;index" json:"task_id"`
+	JiraKey    string    `gorm:"index" json:"jira_key"`
+	EventType  string    `gorm:"not null;index" json:"event_type"`
+	Field      string    `json:"field"`
+	FromString string    `json:"from_string"`
+	ToString   string    `json:"to_string"`
+	Author     string    `json:"author"`
+	CreatedAt  time.Time `gorm:"index" json:"created_at"`
+}
