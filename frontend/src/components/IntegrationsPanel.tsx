@@ -16,7 +16,11 @@ export default function IntegrationsPanel() {
   const fetchTargets = async () => {
     try {
       const res = await fetch(
-        'http://localhost:8080/api/v1/integrations/targets'
+        'http://localhost:8080/api/v1/integrations/targets', {
+          headers: {
+            'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+          }
+        }
       );
       const data = await res.json();
       setTargets(data || []);
@@ -37,7 +41,10 @@ export default function IntegrationsPanel() {
     try {
       await fetch('http://localhost:8080/api/v1/integrations/targets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        },
         body: JSON.stringify({ platform, target_id: targetId }),
       });
       setTargetId('');
@@ -55,6 +62,9 @@ export default function IntegrationsPanel() {
         `http://localhost:8080/api/v1/integrations/targets?id=${id}`,
         {
           method: 'DELETE',
+          headers: {
+            'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+          }
         }
       );
       fetchTargets();

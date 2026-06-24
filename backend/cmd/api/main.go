@@ -89,7 +89,7 @@ func main() {
 	}
 
 	log.Printf("Starting AI-OS API server on port %s", port)
-	if err := http.ListenAndServe(":"+port, corsHandler(mux)); err != nil {
+	if err := http.ListenAndServe(":"+port, corsHandler(identity.AuthMiddleware(mux))); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

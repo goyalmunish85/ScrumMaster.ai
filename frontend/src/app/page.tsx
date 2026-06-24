@@ -66,7 +66,11 @@ export default function Home() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/v1/tasks');
+      const res = await fetch('http://localhost:8080/api/v1/tasks', {
+        headers: {
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        }
+      });
       const data = await res.json();
       setTasks(data || []);
     } catch (err) {
@@ -76,7 +80,11 @@ export default function Home() {
 
   const fetchSyncLogs = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/v1/integrations/logs');
+      const res = await fetch('http://localhost:8080/api/v1/integrations/logs', {
+        headers: {
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        }
+      });
       const data = await res.json();
       setSyncLogs(data || []);
     } catch (err) {
@@ -104,7 +112,10 @@ export default function Home() {
     try {
       await fetch('http://localhost:8080/api/v1/integrations/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        },
         body: JSON.stringify({
           platform: platform || '',
           target_id: target_id || '',
@@ -125,7 +136,11 @@ export default function Home() {
     setIsReportLoading(true);
     setShowReportModal(true);
     try {
-      const res = await fetch('http://localhost:8080/api/v1/reports/weekly');
+      const res = await fetch('http://localhost:8080/api/v1/reports/weekly', {
+        headers: {
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        }
+      });
       const data = await res.json();
       setWeeklyReport(data.report);
     } catch (err) {
@@ -141,7 +156,10 @@ export default function Home() {
     try {
       await fetch('http://localhost:8080/api/v1/chat/evaluate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        },
         body: JSON.stringify({ message_id: messageId, feedback: evalFeedback }),
       });
       setEvaluatingMsgId(null);
@@ -154,7 +172,11 @@ export default function Home() {
 
   // Fetch initial messages & tasks
   useEffect(() => {
-    fetch('http://localhost:8080/api/v1/chat/messages')
+    fetch('http://localhost:8080/api/v1/chat/messages', {
+      headers: {
+        'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => setMessages(data || []))
       .catch((err) => console.error('Failed to fetch messages:', err));
@@ -188,7 +210,10 @@ export default function Home() {
     try {
       const res = await fetch('http://localhost:8080/api/v1/chat/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${process.env.NEXT_PUBLIC_BASIC_AUTH || 'YWRtaW46YWRtaW4='}`
+        },
         body: JSON.stringify({ content: userText }),
       });
 
