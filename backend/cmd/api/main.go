@@ -13,6 +13,7 @@ import (
 	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
+	"github.com/aios/backend/internal/modules/settings"
 	"github.com/aios/backend/internal/modules/tasks"
 	"github.com/joho/godotenv"
 )
@@ -70,6 +71,9 @@ func main() {
 	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
 
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
+
+	// Settings Routes
+	mux.HandleFunc("/api/settings/jira", settings.UpdateJiraConfigHandler)
 
 	// Simple CORS Middleware
 	corsHandler := func(next http.Handler) http.Handler {
