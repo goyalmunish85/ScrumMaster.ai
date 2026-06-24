@@ -12,15 +12,38 @@ import (
 	"github.com/aios/backend/internal/modules/events"
 )
 
+type JiraChangelogItem struct {
+	Field      string `json:"field"`
+	FieldType  string `json:"fieldtype"`
+	FieldId    string `json:"fieldId"`
+	From       string `json:"from"`
+	FromString string `json:"fromString"`
+	To         string `json:"to"`
+	ToString   string `json:"toString"`
+}
+
+type JiraChangelogHistory struct {
+	Id      string              `json:"id"`
+	Created string              `json:"created"`
+	Items   []JiraChangelogItem `json:"items"`
+}
+
+type JiraChangelog struct {
+	Histories []JiraChangelogHistory `json:"histories"`
+}
+
+type JiraIssue struct {
+	Key       string                 `json:"key"`
+	Fields    map[string]interface{} `json:"fields"`
+	Changelog JiraChangelog          `json:"changelog"`
+}
+
 type JiraSearchResponse struct {
 	Names      map[string]string `json:"names"`
 	StartAt    int               `json:"startAt"`
 	MaxResults int               `json:"maxResults"`
 	Total      int               `json:"total"`
-	Issues     []struct {
-		Key    string                 `json:"key"`
-		Fields map[string]interface{} `json:"fields"`
-	} `json:"issues"`
+	Issues     []JiraIssue       `json:"issues"`
 }
 
 // SyncJiraProject fetches tickets for a project and extracts them as tasks
@@ -41,14 +64,14 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 
 	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, token)))
 
-	var allIssues []map[string]interface{}
+	var allIssues []JiraIssue
 	var fieldNames map[string]string
 
 	startAt := 0
 	maxResults := 50
 
 	for {
-		apiURL := fmt.Sprintf("https://%s/rest/api/3/search/jql?jql=%s&expand=names&fields=*all&maxResults=%d&startAt=%d", domain, encodedJQL, maxResults, startAt)
+		apiURL := fmt.Sprintf("https://%s/rest/api/3/search/jql?jql=%s&expand=names,changelog&fields=*all&maxResults=%d&startAt=%d", domain, encodedJQL, maxResults, startAt)
 
 		req, err := http.NewRequest("GET", apiURL, nil)
 		if err != nil {
@@ -80,13 +103,7 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 			fieldNames = jiraResp.Names
 		}
 
-		for _, issue := range jiraResp.Issues {
-			issueMap := map[string]interface{}{
-				"key":    issue.Key,
-				"fields": issue.Fields,
-			}
-			allIssues = append(allIssues, issueMap)
-		}
+		allIssues = append(allIssues, jiraResp.Issues...)
 
 		if len(jiraResp.Issues) == 0 {
 			break
@@ -181,8 +198,8 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 	}
 
 	for _, issueData := range allIssues {
-		key := issueData["key"].(string)
-		fields := issueData["fields"].(map[string]interface{})
+		key := issueData.Key
+		fields := issueData.Fields
 
 		jiraStatus := getNestedStringField(fields, "status", "name")
 		status := "DRAFT"
@@ -238,6 +255,38 @@ func SyncJiraProject(projectKey string, fullSync bool) (string, error) {
 			ParentKey:   parentKey,
 			SourceName:  "Jira: " + projectKey,
 		})
+
+		// Extract Status Transitions and Publish Events
+		type StatusChangeEventPayload struct {
+			TaskName  string `json:"task_name"`
+			Status    string `json:"status"`
+			Timestamp string `json:"timestamp"`
+		}
+
+		for _, history := range issueData.Changelog.Histories {
+			for _, item := range history.Items {
+				if item.Field == "status" {
+					historicalStatus := "DRAFT"
+					if item.ToString == "Done" || item.ToString == "Closed" || item.ToString == "Resolved" {
+						historicalStatus = "DONE"
+					} else if item.ToString == "In Progress" || item.ToString == "In Review" {
+						historicalStatus = "IN_PROGRESS"
+					}
+
+					payloadObj := StatusChangeEventPayload{
+						TaskName:  name,
+						Status:    historicalStatus,
+						Timestamp: history.Created,
+					}
+					eventPayload, _ := json.Marshal(payloadObj)
+
+					events.Publish(events.OperationalEvent{
+						Type:    events.TaskStatusChanged,
+						Payload: eventPayload,
+					})
+				}
+			}
+		}
 	}
 
 	payloadBytes, _ := json.Marshal(map[string]interface{}{

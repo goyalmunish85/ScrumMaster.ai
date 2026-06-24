@@ -51,6 +51,20 @@ func StartListener() {
 				Payload:   string(event.Payload),
 			}
 
+			// Extract timestamp for backdating historical events
+			var timestampPayload struct {
+				Timestamp string `json:"timestamp"`
+			}
+			if err := json.Unmarshal(event.Payload, &timestampPayload); err == nil && timestampPayload.Timestamp != "" {
+				if parsedTime, err := time.Parse(time.RFC3339, timestampPayload.Timestamp); err == nil {
+					// Manually set CreatedAt so Gorm doesn't override it
+					eventRecord.CreatedAt = parsedTime
+				} else if parsedTime, err := time.Parse("2006-01-02T15:04:05.999-0700", timestampPayload.Timestamp); err == nil {
+					// Jira alternative format support
+					eventRecord.CreatedAt = parsedTime
+				}
+			}
+
 			// Helper to get or create a task
 			getOrCreateTask := func(title string) *models.Task {
 				var task models.Task
