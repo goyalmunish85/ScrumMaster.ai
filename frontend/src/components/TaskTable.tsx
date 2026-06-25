@@ -18,9 +18,10 @@ export type Task = {
 
 interface TaskTableProps {
   tasks: Task[];
+  onRowClick?: (taskId: string) => void;
 }
 
-export default function TaskTable({ tasks }: TaskTableProps) {
+export default function TaskTable({ tasks, onRowClick }: TaskTableProps) {
   const getStatusBadge = (status: Task['status']) => {
     switch (status) {
       case 'BLOCKED':
@@ -72,7 +73,8 @@ export default function TaskTable({ tasks }: TaskTableProps) {
               tasks.map((task) => (
                 <tr
                   key={task.id}
-                  className="hover:bg-slate-800/30 transition-colors duration-200 group"
+                  className={`hover:bg-slate-800/30 transition-colors duration-200 group ${onRowClick ? 'cursor-pointer' : ''}`}
+                  onClick={() => onRowClick && onRowClick(task.id)}
                 >
                   <td className="px-6 py-4 font-medium text-slate-200">
                     {task.title}
