@@ -4,11 +4,13 @@ import React, { useState, useEffect } from 'react';
 import SearchBar from '../../components/SearchBar';
 import TaskTable, { Task } from '../../components/TaskTable';
 import Timeline, { TimelineEvent } from '../../components/Timeline';
+import TaskDetailModal from '../../components/TaskDetailModal';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch initial data
@@ -98,7 +100,7 @@ export default function Dashboard() {
                   </svg>
                   Active Tasks
                 </h2>
-                <TaskTable tasks={filteredTasks} />
+                <TaskTable tasks={filteredTasks} onRowClick={setSelectedTaskId} />
               </div>
             </div>
 
@@ -108,6 +110,13 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
     </div>
   );
 }
