@@ -75,6 +75,7 @@ func main() {
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
 
 	// Settings Routes
+	mux.HandleFunc("/api/settings/slack", settings.UpdateSlackConfigHandler)
 	mux.HandleFunc("/api/settings/jira", settings.UpdateJiraConfigHandler)
 
 	// Simple CORS Middleware
