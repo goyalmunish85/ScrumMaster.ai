@@ -23,6 +23,9 @@ func GenerateEmbedding(text string) ([]float32, error) {
 
 	cfg := openai.DefaultConfig(geminiKey)
 	cfg.BaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+	if baseURL := os.Getenv("GEMINI_BASE_URL"); baseURL != "" {
+		cfg.BaseURL = baseURL
+	}
 	client := openai.NewClientWithConfig(cfg)
 
 	resp, err := client.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
