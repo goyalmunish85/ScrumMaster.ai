@@ -359,7 +359,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col relative bg-[#0B0F19]">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none"></div>
 
-        <header className="h-16 border-b border-slate-800/40 bg-[#0B0F19]/80 backdrop-blur-md flex items-center px-8 justify-between relative z-10">
+        <header className="h-16 border-b border-slate-800/40 bg-[#0B0F19]/80 backdrop-blur-md flex items-center px-8 justify-between relative z-50">
           <div className="flex flex-col">
             <h1 className="font-semibold text-slate-200 text-base flex items-center gap-2">
               Core Platform
