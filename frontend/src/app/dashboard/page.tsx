@@ -2,26 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import SearchBar from '../../components/SearchBar';
-import TaskTable, { Task } from '../../components/TaskTable';
+import TaskTable from '../../components/TaskTable';
 import Timeline, { TimelineEvent } from '../../components/Timeline';
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // Fetch initial data
-    const fetchDashboardData = async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-        const res = await fetch(`${apiUrl}/api/v1/tasks`);
-        const data = await res.json();
-        setTasks(data || []);
-      } catch (err) {
-        console.error('Failed to fetch tasks for dashboard:', err);
-      }
-
+    // Fetch initial data for dashboard
+    const fetchDashboardData = () => {
       // Mocking some events since there's no dedicated endpoint for events in the brief
       // but the UI requires a Timeline.
       setEvents([
@@ -60,13 +50,8 @@ export default function Dashboard() {
   }, []);
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query.toLowerCase());
+    setSearchQuery(query);
   };
-
-  const filteredTasks = tasks.filter((task) =>
-    task.title.toLowerCase().includes(searchQuery) ||
-    (task.assignee && task.assignee.toLowerCase().includes(searchQuery))
-  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30">
@@ -98,7 +83,7 @@ export default function Dashboard() {
                   </svg>
                   Active Tasks
                 </h2>
-                <TaskTable tasks={filteredTasks} />
+                <TaskTable searchQuery={searchQuery} />
               </div>
             </div>
 
