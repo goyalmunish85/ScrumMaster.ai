@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/aios/backend/internal/db"
+	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/chat"
 	"github.com/aios/backend/internal/modules/events"
 	"github.com/aios/backend/internal/modules/identity"
 	"github.com/aios/backend/internal/modules/integrations"
-	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/settings"
@@ -76,6 +76,7 @@ func main() {
 
 	// Settings Routes
 	mux.HandleFunc("/api/settings/jira", settings.UpdateJiraConfigHandler)
+	mux.HandleFunc("/api/settings/sheets", settings.UpdateSheetsConfigHandler)
 
 	// Simple CORS Middleware
 	corsHandler := func(next http.Handler) http.Handler {
