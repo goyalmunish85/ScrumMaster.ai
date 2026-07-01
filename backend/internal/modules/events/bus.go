@@ -283,6 +283,9 @@ func StartListener() {
 			if db.DB != nil {
 				db.DB.Create(&eventRecord)
 			}
+
+			// Broadcast update via WebSocket
+			BroadcastTaskUpdated()
 		}
 	}()
 }
