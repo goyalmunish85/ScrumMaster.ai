@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import IntegrationsPanel from '../components/IntegrationsPanel';
 import SemanticSearchBar from '../components/SemanticSearchBar';
+import TaskModal from '../components/TaskModal';
+import { fetchWithRetry } from '../utils/api';
 
 type Message = {
   id: string;
@@ -25,6 +27,11 @@ type Task = {
   task_type: string | null;
   sprint: string | null;
   source_name: string | null;
+  priority: string | null;
+  labels: string | null;
+  project: string | null;
+  jira_key: string | null;
+  parent_key: string | null;
 };
 
 type SyncLog = {
@@ -52,6 +59,10 @@ export default function Home() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Task Modal
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [syncPlatform, setSyncPlatform] = useState('');
   const [syncTargetId, setSyncTargetId] = useState('');
   const [syncFullSync, setSyncFullSync] = useState(false);
@@ -67,9 +78,11 @@ export default function Home() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/v1/tasks');
-      const data = await res.json();
-      setTasks(data || []);
+      const res = await fetchWithRetry('http://localhost:8080/api/v1/tasks', {});
+      if (res) {
+        const data = await res.json();
+        setTasks(data || []);
+      }
     } catch (err) {
       console.error('Failed to fetch tasks:', err);
     }
@@ -77,9 +90,11 @@ export default function Home() {
 
   const fetchSyncLogs = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/v1/integrations/logs');
-      const data = await res.json();
-      setSyncLogs(data || []);
+      const res = await fetchWithRetry('http://localhost:8080/api/v1/integrations/logs', {});
+      if (res) {
+        const data = await res.json();
+        setSyncLogs(data || []);
+      }
     } catch (err) {
       console.error('Failed to fetch sync logs:', err);
     }
@@ -103,7 +118,7 @@ export default function Home() {
   ) => {
     setIsSyncing(true);
     try {
-      await fetch('http://localhost:8080/api/v1/integrations/sync', {
+      await fetchWithRetry('http://localhost:8080/api/v1/integrations/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,9 +141,11 @@ export default function Home() {
     setIsReportLoading(true);
     setShowReportModal(true);
     try {
-      const res = await fetch('http://localhost:8080/api/v1/reports/weekly');
-      const data = await res.json();
-      setWeeklyReport(data.report);
+      const res = await fetchWithRetry('http://localhost:8080/api/v1/reports/weekly', {});
+      if (res) {
+        const data = await res.json();
+        setWeeklyReport(data.report);
+      }
     } catch (err) {
       console.error('Failed to generate report:', err);
       setWeeklyReport('Failed to generate weekly report. Please try again.');
@@ -140,7 +157,7 @@ export default function Home() {
   const submitEvaluation = async (messageId: string) => {
     if (!evalFeedback.trim()) return;
     try {
-      await fetch('http://localhost:8080/api/v1/chat/evaluate', {
+      await fetchWithRetry('http://localhost:8080/api/v1/chat/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message_id: messageId, feedback: evalFeedback }),
@@ -155,8 +172,11 @@ export default function Home() {
 
   // Fetch initial messages & tasks
   useEffect(() => {
-    fetch('http://localhost:8080/api/v1/chat/messages')
-      .then((res) => res.json())
+    fetchWithRetry('http://localhost:8080/api/v1/chat/messages', {})
+      .then((res) => {
+        if (res) return res.json();
+        return [];
+      })
       .then((data) => setMessages(data || []))
       .catch((err) => console.error('Failed to fetch messages:', err));
 
@@ -187,13 +207,13 @@ export default function Home() {
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/chat/messages', {
+      const res = await fetchWithRetry('http://localhost:8080/api/v1/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: userText }),
       });
 
-      if (res.ok) {
+      if (res && res.ok) {
         const aiMsg = await res.json();
         setMessages((prev) => [...prev, aiMsg]);
         // Refresh tasks after AI processes the message
@@ -652,7 +672,11 @@ export default function Home() {
                   {groupTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 shadow-sm hover:border-slate-700 transition-colors group"
+                      onClick={() => {
+                        setSelectedTask(task);
+                        setShowTaskModal(true);
+                      }}
+                      className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 shadow-sm hover:border-slate-700 transition-colors group cursor-pointer"
                     >
                       <p className="text-sm font-medium text-slate-200 leading-snug">
                         {task.title}
@@ -908,6 +932,17 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Task Modal */}
+      {showTaskModal && selectedTask && (
+        <TaskModal
+          task={selectedTask}
+          onClose={() => {
+            setShowTaskModal(false);
+            setSelectedTask(null);
+          }}
+        />
       )}
 
       {/* Sync Dashboard Modal */}
