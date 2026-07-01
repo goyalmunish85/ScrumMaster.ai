@@ -8,6 +8,7 @@ import (
 	"github.com/aios/backend/internal/db"
 	"github.com/aios/backend/internal/models"
 	"github.com/aios/backend/internal/modules/memory"
+	"github.com/aios/backend/internal/modules/ws"
 	"github.com/google/uuid"
 )
 
@@ -283,6 +284,13 @@ func StartListener() {
 			if db.DB != nil {
 				db.DB.Create(&eventRecord)
 			}
+
+			// Broadcast WebSocket trigger
+			ws.BroadcastEvent(ws.WsEvent{
+				Event:  "task_updated",
+				Type:   string(event.Type),
+				TaskID: eventRecord.TaskID,
+			})
 		}
 	}()
 }

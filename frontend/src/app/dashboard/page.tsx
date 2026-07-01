@@ -10,21 +10,19 @@ export default function Dashboard() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    // Fetch initial data
-    const fetchDashboardData = async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-        const res = await fetch(`${apiUrl}/api/v1/tasks`);
-        const data = await res.json();
-        setTasks(data || []);
-      } catch (err) {
-        console.error('Failed to fetch tasks for dashboard:', err);
-      }
+  const fetchDashboardData = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const res = await fetch(`${apiUrl}/api/v1/tasks`);
+      const data = await res.json();
+      setTasks(data || []);
+    } catch (err) {
+      console.error('Failed to fetch tasks for dashboard:', err);
+    }
 
-      // Mocking some events since there's no dedicated endpoint for events in the brief
-      // but the UI requires a Timeline.
-      setEvents([
+    // Mocking some events since there's no dedicated endpoint for events in the brief
+    // but the UI requires a Timeline.
+    setEvents([
         {
           id: '1',
           title: 'Project Initiated',
@@ -53,10 +51,43 @@ export default function Dashboard() {
           timestamp: new Date().toISOString(),
           type: 'completion',
         }
-      ]);
+    ]);
+  };
+
+  useEffect(() => {
+    // Fetch initial data
+    fetchDashboardData();
+
+    // Set up WebSocket for live updates
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    const wsUrl = apiUrl.replace(/^http/, 'ws') + '/api/v1/ws';
+    const ws = new WebSocket(wsUrl);
+
+    interface WsEvent {
+      event: string;
+      type?: string;
+      task_id?: string;
+    }
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const data: WsEvent = JSON.parse(event.data);
+        if (data.event === 'task_updated') {
+          fetchDashboardData();
+        }
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err);
+      }
     };
 
-    fetchDashboardData();
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      ws.onclose = null; // Prevent reconnect loops during cleanup
+      ws.close();
+    };
   }, []);
 
   const handleSearch = (query: string) => {

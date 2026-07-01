@@ -15,6 +15,7 @@ import (
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/settings"
 	"github.com/aios/backend/internal/modules/tasks"
+	"github.com/aios/backend/internal/modules/ws"
 	"github.com/joho/godotenv"
 )
 
@@ -38,6 +39,9 @@ func main() {
 	mux.HandleFunc("/api/activities", events.GetActivitiesHandler)
 
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
+
+	// WebSocket Route
+	mux.HandleFunc("/api/v1/ws", ws.WsHandler)
 
 	// Chat Routes
 	mux.HandleFunc("/api/v1/chat/messages", func(w http.ResponseWriter, r *http.Request) {
