@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aios/backend/internal/db"
@@ -16,13 +17,36 @@ import (
 	"github.com/aios/backend/internal/modules/events"
 )
 
+type SlackFile struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Title              string `json:"title"`
+	Mimetype           string `json:"mimetype"`
+	Filetype           string `json:"filetype"`
+	PrettyType         string `json:"pretty_type"`
+	User               string `json:"user"`
+	Size               int    `json:"size"`
+	Mode               string `json:"mode"`
+	IsExternal         bool   `json:"is_external"`
+	ExternalType       string `json:"external_type"`
+	IsPublic           bool   `json:"is_public"`
+	PublicUrlShared    bool   `json:"public_url_shared"`
+	DisplayAsBot       bool   `json:"display_as_bot"`
+	Username           string `json:"username"`
+	UrlPrivate         string `json:"url_private"`
+	UrlPrivateDownload string `json:"url_private_download"`
+	Permalink          string `json:"permalink"`
+	PermalinkPublic    string `json:"permalink_public"`
+}
+
 type SlackMessage struct {
-	Type     string `json:"type"`
-	Subtype  string `json:"subtype"`
-	Text     string `json:"text"`
-	User     string `json:"user"`
-	Ts       string `json:"ts"`
-	ThreadTs string `json:"thread_ts"`
+	Type     string      `json:"type"`
+	Subtype  string      `json:"subtype"`
+	Text     string      `json:"text"`
+	User     string      `json:"user"`
+	Ts       string      `json:"ts"`
+	ThreadTs string      `json:"thread_ts"`
+	Files    []SlackFile `json:"files,omitempty"`
 }
 
 type SlackChannelInfoResponse struct {
@@ -40,6 +64,8 @@ type SlackHistoryResponse struct {
 	} `json:"response_metadata"`
 }
 
+var slackChannelCache sync.Map
+
 func fetchSlackAPI(url string, token string, target interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -47,18 +73,43 @@ func fetchSlackAPI(url string, token string, target interface{}) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	maxRetries := 3
+	backoff := 1 * time.Second
+
+	var resp *http.Response
+	for i := 0; i < maxRetries; i++ {
+		resp, err = client.Do(req)
+		if err == nil {
+			if resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				return json.NewDecoder(resp.Body).Decode(target)
+			}
+
+			if resp.StatusCode == http.StatusTooManyRequests {
+				retryAfter := resp.Header.Get("Retry-After")
+				if retryAfter != "" {
+					// We could parse this, but for simplicity let's stick to exponential backoff
+					// with a minimum of what we had.
+				}
+			}
+			resp.Body.Close()
+		}
+
+		if i < maxRetries-1 {
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+	}
+
 	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to fetch slack api, status: %d", resp.StatusCode)
+		return fmt.Errorf("failed to fetch slack api after retries: %v", err)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(target)
+	return fmt.Errorf("failed to fetch slack api, status: %d", resp.StatusCode)
 }
 
 // SyncSlackChannel fetches recent messages (3 days) and threads, and extracts tasks via AI
@@ -105,10 +156,15 @@ func SyncSlackChannel(channelID string) (string, error) {
 
 	// Fetch Channel Name for Client Context
 	channelName := channelID
-	var infoResp SlackChannelInfoResponse
-	infoURL := fmt.Sprintf("https://slack.com/api/conversations.info?channel=%s", channelID)
-	if err := fetchSlackAPI(infoURL, token, &infoResp); err == nil && infoResp.Ok {
-		channelName = infoResp.Channel.Name
+	if cachedName, ok := slackChannelCache.Load(channelID); ok {
+		channelName = cachedName.(string)
+	} else {
+		var infoResp SlackChannelInfoResponse
+		infoURL := fmt.Sprintf("https://slack.com/api/conversations.info?channel=%s", channelID)
+		if err := fetchSlackAPI(infoURL, token, &infoResp); err == nil && infoResp.Ok {
+			channelName = infoResp.Channel.Name
+			slackChannelCache.Store(channelID, channelName)
+		}
 	}
 
 	// 2. Build a unified transcript
@@ -126,6 +182,17 @@ func SyncSlackChannel(channelID string) (string, error) {
 		transcriptBuilder.WriteString(fmt.Sprintf("User %s: %s\n", msg.User, msg.Text))
 		validMsgCount++
 
+		if len(msg.Files) > 0 {
+			for _, file := range msg.Files {
+				if payload, err := json.Marshal(file); err == nil {
+					events.Publish(events.OperationalEvent{
+						Type:    events.FileAttached,
+						Payload: payload,
+					})
+				}
+			}
+		}
+
 		// Fetch threads if applicable
 		if msg.ThreadTs != "" && msg.ThreadTs == msg.Ts {
 			repliesURL := fmt.Sprintf("https://slack.com/api/conversations.replies?channel=%s&ts=%s", channelID, msg.ThreadTs)
@@ -137,6 +204,17 @@ func SyncSlackChannel(channelID string) (string, error) {
 					if rMsg.Subtype == "" && rMsg.User != "" {
 						transcriptBuilder.WriteString(fmt.Sprintf("  -> Reply by User %s: %s\n", rMsg.User, rMsg.Text))
 						validMsgCount++
+
+						if len(rMsg.Files) > 0 {
+							for _, file := range rMsg.Files {
+								if payload, err := json.Marshal(file); err == nil {
+									events.Publish(events.OperationalEvent{
+										Type:    events.FileAttached,
+										Payload: payload,
+									})
+								}
+							}
+						}
 					}
 				}
 			}

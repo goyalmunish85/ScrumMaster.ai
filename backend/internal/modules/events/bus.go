@@ -24,6 +24,7 @@ const (
 	TaskStatusChanged EventType = "TASK_STATUS_CHANGED"
 	RiskDetected      EventType = "RISK_DETECTED"
 	BulkTasks         EventType = "BULK_TASKS"
+	FileAttached      EventType = "FILE_ATTACHED"
 )
 
 type OperationalEvent struct {
@@ -156,6 +157,11 @@ func StartListener() {
 						eventRecord.TaskID = &task.ID
 					}
 				}
+			case FileAttached:
+				// File Attached events don't strictly belong to a specific parsed Task yet (they are raw context)
+				// So we leave eventRecord.TaskID as nil.
+				// The listener will inherently save it to the DB via the catch-all save at the bottom.
+				// This meets the requirement of logging to ActivityLog.
 			case BulkTasks:
 				var payload struct {
 					Tasks []struct {
