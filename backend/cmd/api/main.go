@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/aios/backend/internal/db"
+	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/chat"
 	"github.com/aios/backend/internal/modules/events"
 	"github.com/aios/backend/internal/modules/identity"
 	"github.com/aios/backend/internal/modules/integrations"
-	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
 	"github.com/aios/backend/internal/modules/settings"
@@ -103,8 +103,8 @@ func main() {
 
 	log.Printf("Starting AI-OS API server on port %s", port)
 
-	// Apply rate limiter, then CORS
-	finalHandler := corsHandler(rateLimiter.Handler(mux))
+	// Apply rate limiter, then CORS, then BasicAuth
+	finalHandler := corsHandler(rateLimiter.Handler(middleware.BasicAuth(mux)))
 
 	if err := http.ListenAndServe(":"+port, finalHandler); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
