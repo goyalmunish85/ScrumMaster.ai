@@ -293,6 +293,9 @@ func StartListener() {
 					}(*eventRecord.TaskID)
 				}
 			}
+
+			// Broadcast update via WebSocket
+			BroadcastTaskUpdated()
 		}
 	}()
 }

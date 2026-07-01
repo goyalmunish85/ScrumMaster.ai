@@ -39,6 +39,9 @@ func main() {
 
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
 
+	// WebSockets
+	mux.HandleFunc("/api/v1/ws", events.WSHandler)
+
 	// Chat Routes
 	mux.HandleFunc("/api/v1/chat/messages", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {

@@ -12,53 +12,77 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  const fetchDashboardData = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const res = await fetch(`${apiUrl}/api/v1/tasks`);
+      const data = await res.json();
+      setTasks(data || []);
+    } catch (err) {
+      console.error('Failed to fetch tasks for dashboard:', err);
+    }
+  };
+
   useEffect(() => {
     // Fetch initial data
-    const fetchDashboardData = async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-        const res = await fetch(`${apiUrl}/api/v1/tasks`);
-        const data = await res.json();
-        setTasks(data || []);
-      } catch (err) {
-        console.error('Failed to fetch tasks for dashboard:', err);
-      }
+    fetchDashboardData();
 
-      // Mocking some events since there's no dedicated endpoint for events in the brief
-      // but the UI requires a Timeline.
-      setEvents([
-        {
-          id: '1',
-          title: 'Project Initiated',
-          description: 'The core platform integration project was created.',
-          timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-          type: 'creation',
-        },
-        {
-          id: '2',
-          title: 'Jira Sync Completed',
-          description: 'Successfully pulled 24 new issues from Jira.',
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          type: 'update',
-        },
-        {
-          id: '3',
-          title: 'User Feedback Added',
-          description: 'Comment left on task T-12: Needs more tests.',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          type: 'comment',
-        },
-        {
-          id: '4',
-          title: 'Deployment Successful',
-          description: 'v1.2.0 deployed to production.',
-          timestamp: new Date().toISOString(),
-          type: 'completion',
+    // Mocking some events since there's no dedicated endpoint for events in the brief
+    // but the UI requires a Timeline.
+    setEvents([
+      {
+        id: '1',
+        title: 'Project Initiated',
+        description: 'The core platform integration project was created.',
+        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
+        type: 'creation',
+      },
+      {
+        id: '2',
+        title: 'Jira Sync Completed',
+        description: 'Successfully pulled 24 new issues from Jira.',
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        type: 'update',
+      },
+      {
+        id: '3',
+        title: 'User Feedback Added',
+        description: 'Comment left on task T-12: Needs more tests.',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        type: 'comment',
+      },
+      {
+        id: '4',
+        title: 'Deployment Successful',
+        description: 'v1.2.0 deployed to production.',
+        timestamp: new Date().toISOString(),
+        type: 'completion',
+      }
+    ]);
+
+    // WebSocket setup
+    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/^http/, 'ws') + '/api/v1/ws';
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === 'task_updated') {
+          fetchDashboardData();
         }
-      ]);
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err);
+      }
     };
 
-    fetchDashboardData();
+    ws.onclose = () => {
+      console.log('WebSocket closed');
+    };
+
+    return () => {
+      ws.onclose = null; // Prevent memory leaks / infinite loops on unmount
+      ws.close();
+    };
   }, []);
 
   const handleSearch = (query: string) => {
