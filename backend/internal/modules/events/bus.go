@@ -134,14 +134,36 @@ func StartListener() {
 				}
 			case TaskStatusChanged:
 				var payload struct {
-					TaskName string `json:"task_name"`
-					Status   string `json:"status"`
+					TaskName  string `json:"task_name"`
+					Status    string `json:"status"`
+					Timestamp string `json:"timestamp,omitempty"`
+					JiraKey   string `json:"jira_key,omitempty"`
 				}
 				if err := json.Unmarshal(event.Payload, &payload); err == nil {
-					task := getOrCreateTask(payload.TaskName)
+					var task *models.Task
+					if payload.JiraKey != "" && db.DB != nil {
+						var t models.Task
+						if err := db.DB.Where("jira_key = ?", payload.JiraKey).First(&t).Error; err == nil {
+							task = &t
+						}
+					}
+					if task == nil {
+						task = getOrCreateTask(payload.TaskName)
+					}
+
 					if task != nil {
 						db.DB.Model(task).Update("status", payload.Status)
 						eventRecord.TaskID = &task.ID
+
+						if payload.Timestamp != "" {
+							t, err := time.Parse("2006-01-02T15:04:05.999-0700", payload.Timestamp)
+							if err != nil {
+								t, err = time.Parse(time.RFC3339, payload.Timestamp)
+							}
+							if err == nil {
+								eventRecord.CreatedAt = t
+							}
+						}
 					}
 				}
 			case TaskDueDate:
