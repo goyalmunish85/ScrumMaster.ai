@@ -15,11 +15,13 @@ export default function SlackConfigPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const isValidSlackChannelId = (id: string): boolean => {
+    return /^C[A-Z0-9]+$/.test(id);
+  };
 
   const fetchTargets = async () => {
     try {
-      const res = await fetch(`${getApiUrl()}/api/v1/integrations/targets`);
+      const res = await fetch(`/api/integrations/targets`);
       if (!res.ok) throw new Error('Failed to fetch targets');
       const data = await res.json();
       setTargets(data?.filter((t: Target) => t.platform === 'slack') || []);
@@ -34,7 +36,7 @@ export default function SlackConfigPage() {
     let isMounted = true;
     const fetchInit = async () => {
       try {
-        const res = await fetch(`${getApiUrl()}/api/v1/integrations/targets`);
+        const res = await fetch(`/api/integrations/targets`);
         if (!res.ok) throw new Error('Failed to fetch targets');
         const data = await res.json();
         if (isMounted) {
@@ -51,15 +53,24 @@ export default function SlackConfigPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetId.trim()) return;
+    const cleanId = targetId.trim();
+    if (!cleanId) {
+      setError('Slack Channel ID cannot be empty.');
+      return;
+    }
+
+    if (!isValidSlackChannelId(cleanId)) {
+      setError("Invalid format. Must be uppercase letters/numbers starting with 'C' (e.g., C0AQMS8J0P3).");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${getApiUrl()}/api/v1/integrations/targets`, {
+      const res = await fetch(`/api/integrations/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: 'slack', target_id: targetId.trim() }),
+        body: JSON.stringify({ platform: 'slack', target_id: cleanId }),
       });
       if (!res.ok) throw new Error('Failed to add target');
       setTargetId('');
@@ -76,7 +87,7 @@ export default function SlackConfigPage() {
     setError(null);
     try {
       const res = await fetch(
-        `${getApiUrl()}/api/v1/integrations/targets?id=${id}`,
+        `/api/integrations/targets?id=${id}`,
         { method: 'DELETE' }
       );
       if (!res.ok) throw new Error('Failed to delete target');
@@ -125,10 +136,21 @@ export default function SlackConfigPage() {
                 id="targetId"
                 type="text"
                 value={targetId}
-                onChange={(e) => setTargetId(e.target.value)}
+                onChange={(e) => {
+                  setTargetId(e.target.value.toUpperCase());
+                  if (error) setError(null);
+                }}
                 placeholder="e.g. C0AQMS8J0P3"
-                className="flex-1 h-12 bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-4 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-500"
+                className={`
+                  flex-1 h-12 bg-slate-900 border text-slate-200 rounded-xl px-4
+                  focus:outline-none transition-all placeholder:text-slate-500
+                  ${error
+                    ? 'border-rose-500/50 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20'
+                    : 'border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                  }
+                `}
                 aria-label="Slack Channel ID"
+                aria-invalid={!!error}
               />
               <button
                 type="submit"
