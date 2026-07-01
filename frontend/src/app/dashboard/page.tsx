@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import SearchBar from '../../components/SearchBar';
 import TaskTable, { Task } from '../../components/TaskTable';
 import Timeline, { TimelineEvent } from '../../components/Timeline';
+import DailyBriefing from '../../components/DailyBriefing';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -89,21 +90,28 @@ export default function Dashboard() {
         </header>
 
         <div className="flex-1 p-8 relative z-10">
-          <div className="max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 flex flex-col gap-8 h-full">
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-lg shadow-black/20">
-                <h2 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  Active Tasks
-                </h2>
-                <TaskTable tasks={filteredTasks} />
-              </div>
+          <div className="max-w-7xl mx-auto h-full flex flex-col gap-8">
+            {/* Daily Briefing Row */}
+            <div className="w-full">
+              <DailyBriefing />
             </div>
 
-            <div className="lg:col-span-1 h-full min-h-[500px]">
-              <Timeline events={events} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+              <div className="lg:col-span-2 flex flex-col gap-8 h-full">
+                <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-lg shadow-black/20">
+                  <h2 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Active Tasks
+                  </h2>
+                  <TaskTable tasks={filteredTasks} />
+                </div>
+              </div>
+
+              <div className="lg:col-span-1 h-full min-h-[500px]">
+                <Timeline events={events} />
+              </div>
             </div>
           </div>
         </div>

@@ -40,6 +40,7 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
 
 	// Chat Routes
+	mux.HandleFunc("/api/v1/chat/daily_briefing", chat.GetDailyBriefingHandler)
 	mux.HandleFunc("/api/v1/chat/messages", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			chat.GetMessagesHandler(w, r)
@@ -70,7 +71,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/tasks", tasks.GetTasksHandler)
 	mux.HandleFunc("GET /api/tasks/{id}", tasks.GetTaskHandler)
 	mux.HandleFunc("GET /api/v1/tasks/{id}", tasks.GetTaskHandler)
-	mux.HandleFunc("/api/v1/tasks/export", tasks.ExportTasksHandler)
+	mux.HandleFunc("GET /api/v1/tasks/export", tasks.ExportTasksHandler)
 
 	mux.HandleFunc("/api/v1/reports/weekly", reports.GenerateWeeklyReportHandler)
 

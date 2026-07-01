@@ -1,0 +1,113 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+
+type Message = {
+  id: string;
+  content: string;
+  sender_id: string;
+  role: 'user' | 'ai';
+  created_at: string;
+};
+
+export default function DailyBriefing() {
+  const [briefing, setBriefing] = useState<Message | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchBriefing = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const res = await fetch(`${apiUrl}/api/v1/chat/daily_briefing`);
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            setBriefing(null);
+            return;
+          }
+          throw new Error('Failed to fetch daily briefing');
+        }
+
+        const data = await res.json();
+        setBriefing(data);
+      } catch (err) {
+        console.error(err);
+        setError('Unable to load daily briefing.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBriefing();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-lg shadow-black/20 flex flex-col h-full animate-pulse">
+        <div className="h-6 w-48 bg-slate-800 rounded-md mb-6"></div>
+        <div className="space-y-4">
+          <div className="h-4 w-full bg-slate-800 rounded-md"></div>
+          <div className="h-4 w-5/6 bg-slate-800 rounded-md"></div>
+          <div className="h-4 w-4/6 bg-slate-800 rounded-md"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !briefing) {
+    return (
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-lg shadow-black/20 flex flex-col h-full items-center justify-center text-center">
+        <svg className="w-8 h-8 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-sm font-medium text-slate-400">{error || 'No daily briefing available yet.'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-lg shadow-black/20 flex flex-col h-full relative overflow-hidden group">
+      {/* Decorative gradient blur in background */}
+      <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/10 blur-[60px] rounded-full pointer-events-none transition-opacity duration-500 group-hover:opacity-100 opacity-50 z-0"></div>
+
+      <div className="relative z-10 flex items-center justify-between mb-6 border-b border-slate-800/50 pb-4">
+        <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          Daily Standup Briefing
+        </h2>
+        <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          Latest
+        </div>
+      </div>
+
+      <div className="relative z-10 text-[15px] text-slate-300 leading-relaxed custom-scrollbar overflow-y-auto max-h-[400px] pr-2">
+        <ReactMarkdown
+          components={{
+            h3: ({ node, ...props }) => <h3 className="text-lg font-semibold text-white mb-4 mt-2" {...props} />,
+            p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+            ul: ({ node, ...props }) => <ul className="list-disc pl-6 mb-4 space-y-2 marker:text-indigo-500" {...props} />,
+            li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+            strong: ({ node, ...props }) => <strong className="font-semibold text-indigo-300" {...props} />,
+          }}
+        >
+          {briefing.content}
+        </ReactMarkdown>
+      </div>
+
+      <div className="relative z-10 mt-6 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500">
+        <span>Generated by AI OS</span>
+        <time>{new Date(briefing.created_at).toLocaleString(undefined, { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+      </div>
+    </div>
+  );
+}

@@ -13,6 +13,27 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetDailyBriefingHandler returns the most recent Daily Briefing message
+func GetDailyBriefingHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var message models.ChatMessage
+	err := db.DB.Where("sender_id = ? AND content LIKE ?", "ai-system", "### 🌅 Good morning! Here is your Daily Briefing%").
+		Order("created_at desc").
+		First(&message).Error
+
+	if err != nil {
+		http.Error(w, "Daily briefing not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(message)
+}
+
 // GetMessagesHandler returns all messages for a conversation
 func GetMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
