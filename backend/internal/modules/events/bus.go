@@ -282,6 +282,9 @@ func StartListener() {
 			// Save the audit record
 			if db.DB != nil {
 				db.DB.Create(&eventRecord)
+				// Upsert to Qdrant events collection asynchronously
+				eventRecordCopy := eventRecord
+				go memory.UpsertEventToQdrant(&eventRecordCopy)
 			}
 		}
 	}()

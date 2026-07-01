@@ -13,6 +13,7 @@ import (
 	"github.com/aios/backend/internal/middleware"
 	"github.com/aios/backend/internal/modules/ops"
 	"github.com/aios/backend/internal/modules/reports"
+	"github.com/aios/backend/internal/modules/search"
 	"github.com/aios/backend/internal/modules/settings"
 	"github.com/aios/backend/internal/modules/tasks"
 	"github.com/joho/godotenv"
@@ -36,6 +37,9 @@ func main() {
 
 	// Identity/Auth Routes
 	mux.HandleFunc("/api/activities", events.GetActivitiesHandler)
+
+	// Search Route
+	mux.HandleFunc("GET /api/search", search.SearchEventsHandler)
 
 	mux.HandleFunc("/api/v1/auth/login", identity.LoginHandler)
 

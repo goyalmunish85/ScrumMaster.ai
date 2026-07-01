@@ -155,3 +155,133 @@ func SearchTasksSemantic(query string, limit uint64) ([]models.Task, error) {
 
 	return tasks, nil
 }
+
+// UpsertEventToQdrant generates an embedding for an event and upserts it to Qdrant
+func UpsertEventToQdrant(event *models.OperationalEventRecord) error {
+	if db.QdrantClient == nil {
+		return fmt.Errorf("Qdrant client not initialized")
+	}
+
+	textToEmbed := fmt.Sprintf("Event Type: %s\nPayload: %s\nTask ID: %s", event.EventType, event.Payload, "")
+	if event.TaskID != nil {
+		textToEmbed = fmt.Sprintf("Event Type: %s\nPayload: %s\nTask ID: %s", event.EventType, event.Payload, *event.TaskID)
+	}
+
+	vector, err := GenerateEmbedding(textToEmbed)
+	if err != nil {
+		return fmt.Errorf("failed to generate embedding: %v", err)
+	}
+
+	// Create Qdrant point
+	payload := map[string]*qdrant.Value{
+		"event_id":   qdrant.NewValueString(event.ID),
+		"event_type": qdrant.NewValueString(event.EventType),
+		"payload":    qdrant.NewValueString(event.Payload),
+		"created_at": qdrant.NewValueString(event.CreatedAt.Format(time.RFC3339)),
+	}
+
+	if event.TaskID != nil {
+		payload["task_id"] = qdrant.NewValueString(*event.TaskID)
+	}
+
+	uid, err := uuid.Parse(event.ID)
+	if err != nil {
+		return fmt.Errorf("failed to parse event ID to UUID: %v", err)
+	}
+
+	point := &qdrant.PointStruct{
+		Id:      qdrant.NewIDUUID(uid.String()),
+		Vectors: qdrant.NewVectors(vector...),
+		Payload: payload,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	wait := true
+	_, err = db.QdrantClient.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: db.EventsCollection,
+		Wait:           &wait,
+		Points:         []*qdrant.PointStruct{point},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert event to Qdrant: %v", err)
+	}
+
+	log.Printf("[QDRANT] Upserted event %s into vector memory", event.ID)
+	return nil
+}
+
+// SearchEventsSemantic searches Qdrant for similar events using the provided query
+func SearchEventsSemantic(query string, limit uint64) ([]models.OperationalEventRecord, error) {
+	if db.QdrantClient == nil {
+		return nil, fmt.Errorf("Qdrant client not initialized")
+	}
+
+	vector, err := GenerateEmbedding(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding for query: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	searchResults, err := db.QdrantClient.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: db.EventsCollection,
+		Query:          qdrant.NewQuery(vector...),
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to search Qdrant: %v", err)
+	}
+
+	var events []models.OperationalEventRecord
+	for _, result := range searchResults {
+		if result.Payload == nil {
+			continue
+		}
+
+		eventId := ""
+		if val, ok := result.Payload["event_id"]; ok {
+			eventId = val.GetStringValue()
+		}
+		eventType := ""
+		if val, ok := result.Payload["event_type"]; ok {
+			eventType = val.GetStringValue()
+		}
+		payload := ""
+		if val, ok := result.Payload["payload"]; ok {
+			payload = val.GetStringValue()
+		}
+		taskId := ""
+		if val, ok := result.Payload["task_id"]; ok {
+			taskId = val.GetStringValue()
+		}
+		createdAtStr := ""
+		if val, ok := result.Payload["created_at"]; ok {
+			createdAtStr = val.GetStringValue()
+		}
+
+		createdAt := time.Now()
+		if parsedTime, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+			createdAt = parsedTime
+		}
+
+		var taskIDPtr *string
+		if taskId != "" {
+			taskIDPtr = &taskId
+		}
+
+		events = append(events, models.OperationalEventRecord{
+			ID:        eventId,
+			TaskID:    taskIDPtr,
+			EventType: eventType,
+			Payload:   payload,
+			CreatedAt: createdAt,
+		})
+	}
+
+	return events, nil
+}

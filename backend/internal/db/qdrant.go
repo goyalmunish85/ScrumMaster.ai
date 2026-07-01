@@ -10,9 +10,10 @@ import (
 var QdrantClient *qdrant.Client
 
 const TasksCollection = "tasks"
+const EventsCollection = "events"
 const VectorSize = 768 // Gemini text-embedding-004 size
 
-// InitQdrant initializes the connection to Qdrant and creates the tasks collection if it doesn't exist
+// InitQdrant initializes the connection to Qdrant and creates the collections if they don't exist
 func InitQdrant() {
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host: "localhost",
@@ -25,15 +26,16 @@ func InitQdrant() {
 
 	QdrantClient = client
 
-	// Check if collection exists
 	ctx := context.Background()
-	exists, err := QdrantClient.CollectionExists(ctx, TasksCollection)
+
+	// Check and create Tasks collection
+	tasksExists, err := QdrantClient.CollectionExists(ctx, TasksCollection)
 	if err != nil {
-		log.Printf("[ERROR] Failed to check Qdrant collection: %v", err)
+		log.Printf("[ERROR] Failed to check Qdrant tasks collection: %v", err)
 		return
 	}
 
-	if !exists {
+	if !tasksExists {
 		log.Printf("[QDRANT] Creating collection '%s'", TasksCollection)
 		err = QdrantClient.CreateCollection(ctx, &qdrant.CreateCollection{
 			CollectionName: TasksCollection,
@@ -43,11 +45,36 @@ func InitQdrant() {
 			}),
 		})
 		if err != nil {
-			log.Printf("[ERROR] Failed to create Qdrant collection: %v", err)
+			log.Printf("[ERROR] Failed to create Qdrant tasks collection: %v", err)
 		} else {
 			log.Printf("[QDRANT] Collection '%s' created successfully", TasksCollection)
 		}
 	} else {
 		log.Printf("[QDRANT] Collection '%s' already exists", TasksCollection)
+	}
+
+	// Check and create Events collection
+	eventsExists, err := QdrantClient.CollectionExists(ctx, EventsCollection)
+	if err != nil {
+		log.Printf("[ERROR] Failed to check Qdrant events collection: %v", err)
+		return
+	}
+
+	if !eventsExists {
+		log.Printf("[QDRANT] Creating collection '%s'", EventsCollection)
+		err = QdrantClient.CreateCollection(ctx, &qdrant.CreateCollection{
+			CollectionName: EventsCollection,
+			VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+				Size:     VectorSize,
+				Distance: qdrant.Distance_Cosine,
+			}),
+		})
+		if err != nil {
+			log.Printf("[ERROR] Failed to create Qdrant events collection: %v", err)
+		} else {
+			log.Printf("[QDRANT] Collection '%s' created successfully", EventsCollection)
+		}
+	} else {
+		log.Printf("[QDRANT] Collection '%s' already exists", EventsCollection)
 	}
 }
